@@ -24,6 +24,8 @@ Open http://127.0.0.1:4173 in your browser. Use an HTTP server rather than openi
 
 ## Publishing
 
+For Netlify, connect this repository and deploy the `main` branch. The root `netlify.toml` automatically selects `dist` as the publish directory and disables the build command because the site is ready-to-serve static HTML, CSS and JavaScript. For manual uploads, upload the `dist` folder itself.
+
 Serve `dist` as the public directory on a static host with directory-index support. The current private preview is https://sohaib-boxing-ringside.ryanc7.chatgpt.site/. The Sites publishing workflow manages its own source destination independently of GitHub.
 
 ## Content and integrations

@@ -1,0 +1,5 @@
+# The website is already built and checked into dist.
+[build]
+  base = "."
+  publish = "dist"
+  command = ""
