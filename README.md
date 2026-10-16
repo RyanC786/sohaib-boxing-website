@@ -4,13 +4,15 @@ A responsive black-and-gold website for professional boxer Sohaib Mohammed, with
 
 ## Run locally
 
-No dependency installation or build step is required. From this directory, run:
+Use Node 22 or later. From this directory, run:
 
 ```sh
-python -m http.server 4173 --bind 127.0.0.1 --directory dist
+npm ci
+npm test
+npm run dev
 ```
 
-Open http://127.0.0.1:4173 in your browser. Use an HTTP server rather than opening the HTML files directly, since assets use root-relative paths.
+Open http://127.0.0.1:4173 or `/admin/`. See [CMS.md](CMS.md) for one-time Netlify activation and dashboard usage. The local-only test password is printed by the development server.
 
 ## Project structure
 
@@ -24,14 +26,14 @@ Open http://127.0.0.1:4173 in your browser. Use an HTTP server rather than openi
 
 ## Publishing
 
-For Netlify, connect this repository and deploy the `main` branch. The root `netlify.toml` automatically selects `dist` as the publish directory and disables the build command because the site is ready-to-serve static HTML, CSS and JavaScript. For manual uploads, upload the `dist` folder itself.
+For Netlify, deploy the full repository's `main` branch. `netlify.toml` selects `dist` and runs `npm run build`; Netlify also bundles the server functions. Uploading only `dist` does not deploy the dashboard backend.
 
-Serve `dist` as the public directory on a static host with directory-index support. The current private preview is https://sohaib-boxing-ringside.ryanc7.chatgpt.site/. The Sites publishing workflow manages its own source destination independently of GitHub.
+The live CMS runs at https://sohaib-boxing.netlify.app/. The historical private preview at https://sohaib-boxing-ringside.ryanc7.chatgpt.site/ is a separate static deployment without this backend.
 
 ## Content and integrations
 
 The event date, ticket tiers, biography and original images were taken from https://sohaibboxing.com/. The dark painted portrait is an AI-created interpretation of the supplied original portrait. Fonts are loaded from Google Fonts.
 
-Booking, enquiry submission and ticket retrieval link to the existing official services. The ticket calculator is a local estimate and does not transfer selections or process payments. Event information is a static snapshot and should be checked with the team before a production launch. The countdown targets 24 October 2026 at 19:00 UK time.
+Booking, enquiry submission and ticket retrieval still link to existing official services. The calculator is an estimate and does not process payments. Shared event content now comes from the CMS, with the original 24 October 2026 event as the initial default. External checkout prices must be updated separately until Stripe is connected. See [TICKETING.md](TICKETING.md) for the digital-ticket proposal.
 
 Original imagery and branding remain subject to their owners' rights. No public reuse licence is granted by this repository.

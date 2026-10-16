@@ -1,0 +1,183 @@
+{
+  "version": 1,
+  "event": {
+    "title": "An amazing night of professional boxing.",
+    "fighter": "Sohaib Mohammed",
+    "promoter": "Kynoch Boxing Promotions",
+    "city": "Glasgow",
+    "venue": "Crowne Plaza Glasgow",
+    "date": "2026-10-24",
+    "time": "19:00",
+    "timezone": "Europe/London",
+    "tagline": "Under the lights.",
+    "status": "scheduled",
+    "bookingURL": "https://sohaibboxing.com/events/sohaibboxing.com",
+    "policy": "Non-refundable · Non-transferable",
+    "expiredMessage": "Fight date reached · Contact the team for event updates."
+  },
+  "tickets": [
+    {
+      "name": "Boxing Only",
+      "price": 65,
+      "desc": "Standard admission to the boxing.",
+      "detail": "Be there for every round."
+    },
+    {
+      "name": "Dinner Guest",
+      "price": 100,
+      "desc": "The dinner guest ticket option.",
+      "detail": "Contact the team to confirm hospitality and seating details."
+    },
+    {
+      "name": "Inner Row",
+      "price": 150,
+      "desc": "Premium inner row seating.",
+      "detail": "A closer view of the action."
+    },
+    {
+      "name": "VIP Ringside",
+      "price": 250,
+      "desc": "The complete ringside experience.",
+      "detail": "Welcome drinks, a three-course meal, ringside table position and a table drinks package: a bottle of vodka, 24 beers and mixers. Non-alcoholic arrangements available."
+    }
+  ],
+  "gallery": [
+    [
+      "action-punch.jpg",
+      "Fight night",
+      "Sohaib Mohammed lands a right hand during a bout",
+      "Fight night"
+    ],
+    [
+      "action-cross.jpg",
+      "Under the lights",
+      "Sohaib Mohammed throwing a straight shot",
+      "Fight night"
+    ],
+    [
+      "ring-walk.jpg",
+      "Ring walk",
+      "Sohaib Mohammed acknowledging the crowd in the ring",
+      "Fight night"
+    ],
+    [
+      "action-guard.jpg",
+      "Mid-round",
+      "Sohaib Mohammed setting his guard mid-round",
+      "Fight night"
+    ],
+    [
+      "pads-work.jpg",
+      "Camp",
+      "Sohaib Mohammed working the pads with his coach",
+      "Training"
+    ],
+    [
+      "hand-wraps.jpg",
+      "Wraps on",
+      "A coach wrapping Sohaib Mohammed’s hands before a fight",
+      "Training"
+    ],
+    [
+      "portrait-spotlight.jpg",
+      "Spotlight",
+      "Portrait of Sohaib Mohammed under the arena lights",
+      "Portraits"
+    ],
+    [
+      "trunks-pose.jpg",
+      "Before the first bell",
+      "Sohaib Mohammed in the ring before a bout",
+      "Portraits"
+    ],
+    [
+      "hero-ring-portrait.jpg",
+      "In the ring",
+      "Sohaib Mohammed standing in the ring under arena lights",
+      "Portraits"
+    ]
+  ],
+  "media": {
+    "action-cross.jpg": {
+      "url": "/assets/action-cross.jpg",
+      "alt": "",
+      "position": "50% 50%"
+    },
+    "action-guard.jpg": {
+      "url": "/assets/action-guard.jpg",
+      "alt": "",
+      "position": "50% 50%"
+    },
+    "action-punch.jpg": {
+      "url": "/assets/action-punch.jpg",
+      "alt": "",
+      "position": "50% 50%"
+    },
+    "b075c7a3-0007-49c9-ab43-9ce1fa01ba54.jpeg": {
+      "url": "/assets/b075c7a3-0007-49c9-ab43-9ce1fa01ba54.jpeg",
+      "alt": "",
+      "position": "50% 50%"
+    },
+    "hand-wraps.jpg": {
+      "url": "/assets/hand-wraps.jpg",
+      "alt": "",
+      "position": "50% 50%"
+    },
+    "hero-painted-action.png": {
+      "url": "/assets/hero-painted-action.png",
+      "alt": "",
+      "position": "50% 50%"
+    },
+    "hero-painted-portrait.png": {
+      "url": "/assets/hero-painted-portrait.png",
+      "alt": "",
+      "position": "50% 50%"
+    },
+    "hero-painted-ring.png": {
+      "url": "/assets/hero-painted-ring.png",
+      "alt": "",
+      "position": "50% 50%"
+    },
+    "hero-ring-portrait.jpg": {
+      "url": "/assets/hero-ring-portrait.jpg",
+      "alt": "",
+      "position": "50% 50%"
+    },
+    "pads-work.jpg": {
+      "url": "/assets/pads-work.jpg",
+      "alt": "",
+      "position": "50% 50%"
+    },
+    "portrait-spotlight.jpg": {
+      "url": "/assets/portrait-spotlight.jpg",
+      "alt": "",
+      "position": "50% 50%"
+    },
+    "ring-walk.jpg": {
+      "url": "/assets/ring-walk.jpg",
+      "alt": "",
+      "position": "50% 50%"
+    },
+    "sohaib-painted-portrait.png": {
+      "url": "/assets/sohaib-painted-portrait.png",
+      "alt": "",
+      "position": "50% 50%"
+    },
+    "texture-ropes.jpg": {
+      "url": "/assets/texture-ropes.jpg",
+      "alt": "",
+      "position": "50% 50%"
+    },
+    "trunks-pose.jpg": {
+      "url": "/assets/trunks-pose.jpg",
+      "alt": "",
+      "position": "50% 50%"
+    }
+  },
+  "text": {},
+  "links": {},
+  "contact": {
+    "phone": "+44 7805 162717"
+  },
+  "updatedAt": null
+}

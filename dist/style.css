@@ -41,3 +41,15 @@ header .brand{gap:14px;flex-shrink:0}header .brand-name{display:flex;flex-direct
 .hero-shade{background:linear-gradient(90deg,#090b0c9c 0%,#090b0c32 40%,transparent 72%),linear-gradient(0deg,#090b0c 0%,transparent 40%)}
 @media(max-width:700px){.hero-photo,.hero-third{object-position:77% top}.hero-action{object-position:85% top}.hero-shade{background:linear-gradient(0deg,#090b0c 0%,#090b0c66 40%,transparent 72%),linear-gradient(90deg,#090b0c22,transparent)}}
 @media(max-width:700px){.fighter-opening{min-height:800px;min-height:95svh;align-items:flex-end;padding:150px 6% 65px}.painted-portrait{top:68px;height:70%;width:155%;left:-50%;object-position:80% 20%;opacity:.95;mask-image:linear-gradient(180deg,transparent,black 10%,black 65%,transparent);-webkit-mask-image:linear-gradient(180deg,transparent,black 10%,black 65%,transparent)}.fighter-opening:after{background:linear-gradient(0deg,#090b0c 0%,#090b0ca6 23%,transparent 57%)}.fighter-opening-copy{max-width:100%}.fighter-opening h1{font-size:clamp(3.8rem,16vw,6rem)}.fighter-opening-copy>p{max-width:320px;font-size:14px;margin-top:22px}.partnership-grid>a{padding:25px}.partnership-section:before{background-position:67% center;opacity:.43}.story-section:before{background-position:70% bottom;opacity:.12}}
+/* Unified editorial frames and editable background slots. */
+.gallery-teaser,.photo-grid{grid-template-columns:repeat(3,minmax(0,1fr));align-items:start}
+.gallery-teaser .photo-card:nth-child(n),.photo-grid .photo-card:nth-child(n){grid-column:auto;margin-top:0}
+.photo-card>div{aspect-ratio:4/3;border-radius:16px;border:1px solid #e6bf6d28;isolation:isolate}
+.gallery-teaser .photo-card:nth-child(n) img,.photo-grid .photo-card:nth-child(n) img,.camp-grid .photo-card img{width:100%;height:100%;aspect-ratio:4/3;object-fit:cover;clip-path:none;border-radius:0}
+.partnership-section:before{background-image:var(--ring-image,url('/assets/texture-ropes.jpg'));background-position:var(--ring-position,center 52%)}
+.story-section:before{background-image:var(--camp-image,url('/assets/pads-work.jpg'));background-position:var(--camp-position,right center)}
+.tickets-section{background-image:radial-gradient(ellipse at 90% 20%,#c08b3033,transparent 55%),linear-gradient(#101315e8,#0a0c0ff5),var(--ring-image,url('/assets/texture-ropes.jpg'))}
+.draft-banner{position:fixed;bottom:15px;left:50%;transform:translateX(-50%);z-index:1000;border:1px solid #e6bf6d;background:#101214ee;color:#efd69e;padding:10px 16px;border-radius:30px;font:600 11px Manrope,sans-serif;white-space:nowrap}
+[aria-disabled=true]{opacity:.55;cursor:not-allowed}
+@media(max-width:700px){.gallery-teaser,.photo-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.photo-card>div{border-radius:12px}}
+@media(max-width:430px){.gallery-teaser,.photo-grid{grid-template-columns:1fr}}

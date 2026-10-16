@@ -2,3 +2,7 @@
 research/
 *.tar.gz
 *.tar
+node_modules/
+.cms-local/
+.env
+.netlify/
