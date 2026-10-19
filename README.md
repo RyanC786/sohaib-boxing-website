@@ -26,6 +26,8 @@ Open http://127.0.0.1:4173 or `/admin/`. See [CMS.md](CMS.md) for one-time Netli
 
 ## Publishing
 
+The intended handover host is **Vercel**, confirmed by the user on 19 October 2026. Netlify remains the current deployment while setup is completed. See [VERCEL-HANDOVER.md](VERCEL-HANDOVER.md) for the required server, storage, scheduler and domain migration; do not assume a static Vercel import includes the backend.
+
 For Netlify, deploy the full repository's `main` branch. `netlify.toml` selects `dist` and runs `npm run build`; Netlify also bundles the server functions. Uploading only `dist` does not deploy the dashboard backend.
 
 The live CMS runs at https://sohaib-boxing.netlify.app/. The historical private preview at https://sohaib-boxing-ringside.ryanc7.chatgpt.site/ is a separate static deployment without this backend.
