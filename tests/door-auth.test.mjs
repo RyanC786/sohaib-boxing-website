@@ -41,3 +41,21 @@ test('individual account mode never falls back to a shared password when configu
     assert.equal(response.status,403);
   }finally{process.env=saved;}
 });
+
+test('recovery specifies the website destination and reports provider failure instead of claiming an email was sent',async()=>{
+  const saved={...process.env},originalFetch=globalThis.fetch;
+  Object.assign(process.env,{SUPABASE_URL:'https://project.example.test',SUPABASE_PUBLISHABLE_KEY:'test-public',DOOR_SESSION_KEY:'a'.repeat(64)});
+  let destination;
+  globalThis.fetch=async(url,options)=>{
+    assert.match(String(url),/\/auth\/v1\/recover/);
+    destination=new URL(url).searchParams.get('redirect_to');
+    return new Response(JSON.stringify({msg:'email provider unavailable',code:'unexpected_failure'}),{status:500,headers:{'Content-Type':'application/json'}});
+  };
+  try{
+    const response=await auth(new Request('https://boxing.test/api/door/auth',{method:'POST',headers:{origin:'https://boxing.test','Content-Type':'application/json'},body:JSON.stringify({action:'recover',email:'owner@example.test'})}));
+    assert.equal(destination,'https://boxing.test/door/?next=admin');assert.equal(response.status,503);
+    assert.match((await response.json()).error,/could not be sent/);
+    const invalid=await auth(new Request('https://boxing.test/api/door/auth',{method:'POST',headers:{origin:'https://boxing.test','Content-Type':'application/json'},body:JSON.stringify({action:'email-link',type:'signup',access_token:'x',refresh_token:'y'})}));
+    assert.equal(invalid.status,400);assert.equal(invalid.headers.has('Set-Cookie'),false);
+  }finally{globalThis.fetch=originalFetch;process.env=saved;}
+});

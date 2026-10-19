@@ -20,6 +20,10 @@ The subsequent read-only PostgreSQL catalogue audit returned:
 
 Customer/scanner RPCs are intentionally excluded from the service-only grant check: `ringside_access`, `ringside_scan`, `ringside_door_events`, `ringside_my_orders`, `ringside_marketing_preference`. They require a valid user JWT and perform their own staff/event/ownership checks. A public publishable key does not grant privileged access.
 
-The hosted email settings show **Set up custom SMTP to edit templates**. An SMTP sender has not been configured. The initial owner role is verified. The Netlify login variables are saved for Production only; deployment is being refreshed to load them. Initial owner MFA enrolment is still pending. Neither this audit nor deployment activates Stripe, creates a charge, sends a customer email or enables automatic deletion.
+The hosted email settings show **Set up custom SMTP to edit templates**. An SMTP sender has not been configured. The initial owner role is verified. The Netlify login variables are saved for Production only; the live login endpoints confirm individual accounts are configured. Initial owner MFA enrolment is still pending. Neither this audit nor deployment activates Stripe, creates a charge, sends a customer email or enables automatic deletion.
 
 These catalogue checks confirm deployed permissions. They do not replace hosted JWT/MFA testing, two-device admission concurrency, physical phone camera tests, real email delivery or Stripe test-mode checkout. Those acceptance checks remain required in [ACTIVATION.md](ACTIVATION.md).
+
+## Password recovery correction — 19 October 2026
+
+The hosted Auth Site URL was still http://localhost:3000. It is now https://sohaib-boxing.netlify.app/door/?next=admin. No additional redirect origins were added. The application now supports the default Supabase recovery/invitation email link as well as code templates: it removes fragment credentials from address history, exchanges them through the same-origin server, verifies the Supabase user and staff role, and retains MFA before password changes. Tokens are not saved in browser storage. Provider failures no longer falsely report a sent recovery email. Owner password/MFA acceptance remains user-operated and unverified.

@@ -102,5 +102,16 @@ window.addEventListener('online',connection);window.addEventListener('offline',c
 document.addEventListener('visibilitychange',()=>{if(document.hidden){view++;stopCamera();result=null;clearTimeout(expiryTimer);const target=document.querySelector('#result');if(target)target.replaceChildren();}else{const button=document.querySelector('#camera');if(button)button.hidden=false;}});
 window.addEventListener('pagehide',stopCamera);
 window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();installPrompt=event;});
-connection();refresh().catch(error=>{login();tell(error.message,true);});
+async function start(){
+  const link=new URLSearchParams(location.hash.slice(1));
+  // Remove email credentials from the address/history before making any request.
+  if(location.hash)history.replaceState(null,'',location.pathname+location.search);
+  if(link.has('error')||link.has('error_description'))throw Error('This account link has expired or was already used. Request a new recovery email.');
+  if(link.has('access_token')||link.has('refresh_token')){
+    await auth({action:'email-link',type:link.get('type'),access_token:link.get('access_token'),refresh_token:link.get('refresh_token')});
+    recovered=true;
+  }
+  await refresh();
+}
+connection();start().catch(error=>{login(true);tell(error.message,true);});
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/door/sw.js',{scope:'/door/'}).catch(()=>{});

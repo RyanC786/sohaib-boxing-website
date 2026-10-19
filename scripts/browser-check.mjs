@@ -27,5 +27,25 @@ try{
   assert.equal(await page.getByRole('button',{name:'Admit attendee',exact:true}).count(),0);await page.context().setOffline(false);
   await page.goto('http://127.0.0.1:4173/ticket/');await page.getByText('Open the private ticket link in your booking email to view your QR codes.').waitFor();
   await page.goto('http://127.0.0.1:4173/ticket/buy/');await page.getByRole('link',{name:'Current booking information'}).waitFor();
-  assert.deepEqual(errors,[]);console.log('Mobile scanner sign-in, ID confirmation, duplicate rejection, offline safety and inactive checkout passed.');
+  // Synthetic email callback credentials only; no hosted account or email is used.
+  signedIn=false;let linkReceived=false,mfaVerified=false;
+  await page.route('**/api/door/auth',async route=>{
+    const request=route.request(),data=request.method()==='POST'?request.postDataJSON():null;
+    if(data?.action==='email-link'){
+      assert.equal(new URL(page.url()).hash,'');
+      assert.equal(data.type,'recovery');assert.equal(data.access_token,'synthetic-access');
+      signedIn=true;linkReceived=true;return route.fulfill({json:{ok:true,recovered:true}});
+    }
+    if(data?.action==='verify'){mfaVerified=true;return route.fulfill({json:{ok:true}});}
+    return route.fulfill({json:signedIn?{configured:true,authenticated:true,email:'staff@example.test',role:'owner',mfaVerified,factors:[{id:'test-factor',name:'Test authenticator'}]}:{configured:true,authenticated:false}});
+  });
+  await page.goto('http://127.0.0.1:4173/door/?next=admin#type=recovery&access_token=synthetic-access&refresh_token=synthetic-refresh');
+  await page.getByRole('heading',{name:'Verify your authenticator'}).waitFor();
+  assert.equal(linkReceived,true);assert.equal(new URL(page.url()).hash,'');
+  assert.equal(await page.evaluate(()=>JSON.stringify({...localStorage,...sessionStorage}).includes('synthetic-access')),false);
+  await page.getByLabel('Authenticator code').fill('123456');await page.getByRole('button',{name:'Verify and continue'}).click();
+  await page.getByLabel('New password',{exact:true}).waitFor();assert.equal(new URL(page.url()).pathname,'/door/');
+  await page.goto('http://127.0.0.1:4173/door/#error=access_denied&error_description=expired');
+  await page.getByText('This account link has expired or was already used. Request a new recovery email.').waitFor();assert.equal(new URL(page.url()).hash,'');
+  assert.deepEqual(errors,[]);console.log('Mobile scanner, duplicate/offline safety, inactive checkout and email recovery/MFA callback checks passed.');
 }finally{await browser.close();}

@@ -28,9 +28,19 @@ export default async req=>{
     }
     if(data.action==='recover'){
       if(typeof data.email!=='string'||data.email.length>254)throw fail('Enter your email address.');
-      // The recovery email template must show {{ .Token }}; there is no browser token storage.
-      await client(config).auth.resetPasswordForEmail(data.email);
-      return json({message:'If that account exists, a recovery email will arrive. Enter its code below.'});
+      const destination=new URL('/door/?next=admin',req.url).href;
+      const result=await client(config).auth.resetPasswordForEmail(data.email.trim(),{redirectTo:destination});
+      if(result.error)throw fail('Recovery email could not be sent. Please wait a few minutes and try again, or contact the organiser.',503);
+      return json({message:'If that account exists, a recovery email will arrive. Open its reset link, or enter its recovery code below.'});
+    }
+    if(data.action==='email-link'){
+      if(!['recovery','invite'].includes(data.type)||!['access_token','refresh_token'].every(key=>typeof data[key]==='string'&&data[key].length>0&&data[key].length<=4096))throw fail('This account link is invalid. Request a new recovery email.');
+      const supabase=client(config),result=await supabase.auth.setSession({access_token:data.access_token,refresh_token:data.refresh_token});
+      if(result.error||!result.data.session)throw fail('This account link has expired. Request a new recovery email.',401);
+      const verified=await supabase.auth.getUser();
+      if(verified.error||!verified.data.user?.email_confirmed_at)throw fail('This account link could not be verified.',401);
+      await staffAccess(supabase,false,['owner','editor','scanner']);
+      return response({ok:true,recovered:true},result.data.session,config);
     }
     if(data.action==='recovery-verify'||data.action==='invite-verify'){
       if(typeof data.email!=='string'||! /^\d{6,10}$/.test(data.code||''))throw fail('Enter the recovery code from your email.');
