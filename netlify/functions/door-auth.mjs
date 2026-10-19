@@ -52,14 +52,20 @@ export default async req=>{
     if(data.action==='enroll'){
       const existing=await s.supabase.auth.mfa.listFactors();if(existing.error)throw fail('Cannot check authenticator settings.',503);
       if(existing.data.totp.some(f=>f.status==='verified'))throw fail('Use your existing authenticator. Ask the organiser if you have lost access.',409);
-      for(const f of existing.data.totp.filter(f=>f.status==='unverified'))await s.supabase.auth.mfa.unenroll({factorId:f.id});
+      for(const f of existing.data.all.filter(f=>f.factor_type==='totp'&&f.status==='unverified')){
+        const removed=await s.supabase.auth.mfa.unenroll({factorId:f.id});
+        if(removed.error)throw fail('Cannot restart authenticator setup. Try again shortly.',503);
+      }
       const {data:factor,error}=await s.supabase.auth.mfa.enroll({factorType:'totp',friendlyName:'Ringside door',issuer:'Ringside'});
       if(error)throw fail('Authenticator setup failed. Try again.',503);
       return response({id:factor.id,qr:factor.totp.qr_code,secret:factor.totp.secret},s.session,config);
     }
     if(data.action==='verify'){
       if(! /^\d{6}$/.test(data.code||'')||typeof data.factorId!=='string')throw fail('Enter the six-digit authenticator code.');
-      const factors=await s.supabase.auth.mfa.listFactors();if(factors.error||!factors.data.totp.some(f=>f.id===data.factorId))throw fail('Authenticator not found.',403);
+      const factors=await s.supabase.auth.mfa.listFactors();
+      if(factors.error)throw fail('Cannot check authenticator settings. Try again shortly.',503);
+      // Supabase puts pending enrolments in `all`; `totp` contains verified factors only.
+      if(!factors.data.all.some(f=>f.factor_type==='totp'&&f.id===data.factorId))throw fail('Authenticator not found. Restart setup on this page.',403);
       const {error}=await s.supabase.auth.mfa.challengeAndVerify({factorId:data.factorId,code:data.code});
       if(error)throw fail('That code is incorrect or has expired. Try the next code.',401);
       const current=await s.supabase.auth.getSession();return response({ok:true},current.data.session,config);

@@ -59,3 +59,34 @@ test('recovery specifies the website destination and reports provider failure in
     assert.equal(invalid.status,400);assert.equal(invalid.headers.has('Set-Cookie'),false);
   }finally{globalThis.fetch=originalFetch;process.env=saved;}
 });
+
+test('real Supabase SDK verifies pending TOTP, rejects foreign factors and cleans up only unfinished TOTP setup',async()=>{
+  const saved={...process.env},originalFetch=globalThis.fetch,key='b'.repeat(64);
+  Object.assign(process.env,{SUPABASE_URL:'https://project.example.test',SUPABASE_PUBLISHABLE_KEY:'test-public',DOOR_SESSION_KEY:key});
+  const jwt=aal=>[Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url'),Buffer.from(JSON.stringify({sub:'test-user',exp:Math.floor(Date.now()/1000)+3600,aal})).toString('base64url'),'c3ludGhldGlj'].join('.');
+  let factors=[{id:'pending-factor',factor_type:'totp',status:'unverified'}],challengeCount=0,deleted=[],failCleanup=false;
+  const user=()=>({id:'test-user',aud:'authenticated',email:'owner@example.test',email_confirmed_at:'2026-10-19T00:00:00Z',factors});
+  const reply=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json'}});
+  globalThis.fetch=async(url,options)=>{
+    const path=new URL(url).pathname;
+    if(path==='/auth/v1/user')return reply(user());
+    if(path==='/rest/v1/rpc/ringside_access')return reply({role:'owner',mfaVerified:false});
+    if(path==='/auth/v1/factors/pending-factor/challenge'){challengeCount++;return reply({id:'challenge',type:'totp',expires_at:Date.now()/1000+60});}
+    if(path==='/auth/v1/factors/pending-factor/verify')return reply({access_token:jwt('aal2'),refresh_token:'synthetic-refresh',expires_in:3600,token_type:'bearer',user:user()});
+    if(options.method==='DELETE'&&path.startsWith('/auth/v1/factors/')){deleted.push(path.split('/').pop());return failCleanup?reply({msg:'unavailable'},400):reply({id:deleted.at(-1)});}
+    if(path==='/auth/v1/factors'&&options.method==='POST')return reply({id:'new-factor',type:'totp',totp:{qr_code:'synthetic-qr',secret:'synthetic-secret'}});
+    throw Error('Unexpected synthetic provider request: '+path);
+  };
+  const request=data=>new Request('https://boxing.test/api/door/auth',{method:'POST',headers:{origin:'https://boxing.test','Content-Type':'application/json',cookie:'ringside_door='+seal({access_token:jwt('aal1'),refresh_token:'synthetic-refresh'},key)},body:JSON.stringify(data)});
+  try{
+    const verified=await auth(request({action:'verify',factorId:'pending-factor',code:'000000'}));
+    assert.equal(verified.status,200);assert.equal(challengeCount,1);assert.equal(verified.headers.has('Set-Cookie'),true);
+    const foreign=await auth(request({action:'verify',factorId:'another-users-factor',code:'000000'}));
+    assert.equal(foreign.status,403);assert.equal(challengeCount,1);assert.equal(foreign.headers.has('Set-Cookie'),false);
+    factors.push({id:'phone-factor',factor_type:'phone',status:'unverified'});
+    assert.equal((await auth(request({action:'enroll'}))).status,200);assert.deepEqual(deleted,['pending-factor']);
+    failCleanup=true;assert.equal((await auth(request({action:'enroll'}))).status,503);
+    factors=[{id:'existing-factor',factor_type:'totp',status:'verified'}];deleted=[];
+    assert.equal((await auth(request({action:'enroll'}))).status,409);assert.deepEqual(deleted,[]);
+  }finally{globalThis.fetch=originalFetch;process.env=saved;}
+});
