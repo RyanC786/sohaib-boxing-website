@@ -6,3 +6,7 @@ node_modules/
 .cms-local/
 .env
 .netlify/
+dist/door/vendor/
+.env.*
+!.env.example
+output/

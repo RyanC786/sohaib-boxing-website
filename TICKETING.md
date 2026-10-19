@@ -1,6 +1,10 @@
-# Digital tickets — proposed next integration
+# Digital tickets — implemented code, awaiting activation
 
-This is a design for the next stage, not an operational ticket service.
+The repository now contains the installable staff app at `/door/`, individual staff login with MFA, server-controlled reservations, signed Stripe notifications, per-attendee QR generation, printable tickets at `/ticket/`, and a scheduled transactional email queue. These are not operational until the hosted Supabase migrations, staff accounts, inventory, Stripe test integration and verified email sender are configured. Stripe connection is deferred at the user's request. Existing public booking buttons continue to use the current official booking provider.
+
+No live charge, customer email, owner invitation or customer-data deletion has been performed. No physical tickets are posted: the booking email opens the private QR ticket, which the buyer can print or show on their phone. The ticket email is separate from marketing consent.
+
+## Implemented workflow and acceptance requirements
 
 1. Collect the buyer's email and a full name for each attendee, including group orders. Show booking/transfer/refund rules. Do not collect ID document scans or numbers.
 2. Reserve capacity with an expiry and create Stripe Checkout using server-side prices and event IDs. Never trust a browser-supplied total.
@@ -19,3 +23,10 @@ Refunds revoke tickets. Approved transfers rotate tokens so old QRs stop working
 Before live sales: connect the organiser's Stripe account, verified transactional-email sender, relational database and staff identity provider. Confirm capacities, seating, approved policies and privacy retention. Test payments, webhook signatures/retries, delayed payments, expiry, refunds, group orders, duplicate/concurrent scans, wrong events and ID mismatches in test mode. No live charges or new paid subscriptions are authorised by this proposal.
 
 References: [Stripe fulfillment](https://docs.stripe.com/checkout/fulfillment), [Stripe webhooks](https://docs.stripe.com/webhooks), [Netlify storage](https://docs.netlify.com/build/data-and-storage/overview/).
+
+
+## Current limits
+
+Staff invitations and event assignments are managed in the protected Supabase setup until the owner-management interface is connected. The CMS controls public event wording and display prices; admission events and inventory must be explicitly mapped and reconciled before enabling checkout. The code does not infer capacities or admission hours. New-event creation must use a new event ID, preserving existing orders. Schedule or venue changes require an organiser-controlled customer-notification process before publication; that automatic synchronisation is not yet enabled. Transfers, supervisor overrides, resend controls and a customer account portal remain follow-up work; do not promise those actions from the current UI. Partial refunds revoke all admissions on the affected order and mark it for manual review. Holds with uncertain checkout creation are kept until Stripe reconciliation; do not automatically release them based only on a local timer.
+
+Email delivery uses Resend through a disabled-by-default scheduled function. It claims jobs with leases, uses a stable provider idempotency key, retries transient failures and stops for review after eight attempts or 23 hours. The sender only processes ticket delivery jobs; it never treats all buyers as marketing subscribers. Staff invitations and password-recovery emails use Supabase SMTP and code templates, separately from ticket delivery.

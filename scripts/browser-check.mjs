@@ -1,0 +1,31 @@
+import {chromium} from 'playwright';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+const browser=await chromium.launch({headless:true,channel:'chrome'});
+await fs.mkdir('output/door',{recursive:true});
+try{
+  const page=await browser.newPage({viewport:{width:390,height:844},serviceWorkers:'block'});
+  const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await page.goto('http://127.0.0.1:4173/door/');await page.waitForLoadState('networkidle');
+  await page.getByRole('heading',{name:'Staff access awaits activation'}).waitFor();
+  await page.screenshot({path:'output/door/activation-mobile.png',fullPage:true});
+  let signedIn=false,used=false;
+  await page.route('**/api/door/auth',async route=>route.fulfill({json:signedIn?{configured:true,authenticated:true,email:'staff@example.test',role:'scanner',mfaVerified:true,factors:[]}:{configured:true,authenticated:false}}));
+  await page.route('**/api/door/events',route=>route.fulfill({json:[{id:'20000000-0000-4000-8000-000000000001',title:'TEST PREVIEW · Fight night',venue:'Test preview venue',startsAt:'2026-10-24T18:00:00Z',scanOpensAt:'2026-10-24T17:00:00Z',scanClosesAt:'2026-10-24T23:00:00Z'}]}));
+  await page.route('**/api/door/scan',route=>{const data=route.request().postDataJSON();const status=used?'already_used':data.admit?'admitted':'valid';if(data.admit)used=true;return route.fulfill({json:{status,name:'TEST PREVIEW · Attendee',category:'VIP ringside',usedAt:used?'2026-10-24T18:00:00Z':null}});});
+  await page.reload();await page.waitForLoadState('networkidle');await page.getByRole('heading',{name:'Staff sign-in'}).waitFor();
+  await page.screenshot({path:'output/door/sign-in-mobile.png',fullPage:true});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  signedIn=true;await page.reload();await page.waitForLoadState('networkidle');
+  await page.getByText('Camera unavailable? Enter the ticket code',{exact:true}).click();
+  await page.getByLabel('43-character ticket code').fill('a'.repeat(43));await page.getByRole('button',{name:'Check ticket',exact:true}).click();
+  await page.getByText('Check ID before entry',{exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Admit attendee',exact:true}).isDisabled(),true);
+  await page.getByLabel('I have checked the name against their ID.').check();await page.getByRole('button',{name:'Admit attendee',exact:true}).click();await page.getByText('Admitted',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Check ticket',exact:true}).click();await page.getByText('Already used · do not admit',{exact:true}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'Admit attendee',exact:true}).count(),0);
+  await page.context().setOffline(true);await page.getByText('● Offline · admission paused',{exact:true}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'Admit attendee',exact:true}).count(),0);await page.context().setOffline(false);
+  await page.goto('http://127.0.0.1:4173/ticket/');await page.getByText('Open the private ticket link in your booking email to view your QR codes.').waitFor();
+  await page.goto('http://127.0.0.1:4173/ticket/buy/');await page.getByRole('link',{name:'Current booking information'}).waitFor();
+  assert.deepEqual(errors,[]);console.log('Mobile scanner sign-in, ID confirmation, duplicate rejection, offline safety and inactive checkout passed.');
+}finally{await browser.close();}

@@ -37,3 +37,10 @@ The event date, ticket tiers, biography and original images were taken from http
 Booking, enquiry submission and ticket retrieval still link to existing official services. The calculator is an estimate and does not process payments. Shared event content now comes from the CMS, with the original 24 October 2026 event as the initial default. External checkout prices must be updated separately until Stripe is connected. See [TICKETING.md](TICKETING.md) for the digital-ticket proposal.
 
 Original imagery and branding remain subject to their owners' rights. No public reuse licence is granted by this repository.
+
+
+## Staff app and QR tickets (19 October 2026)
+
+`/door/` is the phone-installable staff app. `/ticket/` displays private printable QR tickets; `/ticket/buy/` is gated checkout code awaiting payment, inventory, bot-protection and email activation. Individual account mode disables the legacy shared admin password. All customer data and QR tokens are excluded from service-worker caching.
+
+Use `npm test` for the PostgreSQL, access-control, payment and QR tests. `npm run build` also copies the pinned QR decoder into the scanner shell. `node scripts/browser-check.mjs` runs optional mobile browser checks (Playwright and Chrome required). See [supabase/ACTIVATION.md](supabase/ACTIVATION.md) for configuration and remaining hosted checks. The existing Netlify deployment must receive a new Git commit before these routes appear there.
