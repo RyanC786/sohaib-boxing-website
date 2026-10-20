@@ -16,6 +16,11 @@ export function safeURL(value,image=false){
 }
 export function validateContent(input){
   const c=JSON.parse(JSON.stringify(input));
+  if(c?.event){
+    c.event={id:'70000000-0000-4000-8000-000000000001',cancellationReason:'',customerMessage:'',contactEmail:'',refundPolicy:'If the organiser cancels the event, contact the team for a refund. A transfer to another event is optional and requires your agreement. This does not affect your statutory rights.',transferPolicy:'Contact the organiser with your booking reference to request a transfer. Availability and any price difference must be agreed before a replacement ticket is issued.',emailWelcome:'Thank you for booking. We look forward to welcoming you to fight night.',arrivalInfo:'Bring your printed QR ticket or show it on your phone, together with ID matching the attendee name.',...c.event};
+    c.event={scanOpenMinutesBefore:0,scanDurationMinutes:480,fighterStatus:'confirmed',fighterNotice:'',fighterChangePolicy:'If a change to the advertised fight card affects your booking, contact the organiser with your booking reference to discuss the available options and applicable refund rights. Any transfer to a different event requires your agreement.',...c.event};
+    c.tickets=c.tickets?.map((t,i)=>({id:`71000000-0000-4000-8000-${String(i+1).padStart(12,'0')}`,capacity:100,enabled:false,...t}));
+  }
   const check=(ok,message)=>{if(!ok)throw Error(message)};
   const str=(x,max=4000)=>typeof x==='string'&&x.length<=max;
   check(c?.version===1,'Unsupported content format.');
@@ -23,11 +28,19 @@ export function validateContent(input){
   for(const key of ['title','fighter','promoter','city','venue','tagline','policy','expiredMessage'])check(str(c.event[key],1000)&&c.event[key].trim().length>0,`Complete the event ${key}.`);
   check(/^\d{4}-\d{2}-\d{2}$/.test(c.event.date)&&/^\d{2}:\d{2}$/.test(c.event.time),'Choose an event date and time.');
   check(c.event.timezone==='Europe/London','The event timezone must be Europe/London.');eventDates(c.event);
-  check(['scheduled','postponed','cancelled','sold out'].includes(c.event.status),'Choose a valid event status.');
+  check(['draft','scheduled','postponed','cancelled','sold out','completed'].includes(c.event.status),'Choose a valid event status.');
+  check(['confirmed','withdrawn'].includes(c.event.fighterStatus),'Choose the fighter participation status.');
+  for(const key of ['fighterNotice','fighterChangePolicy'])check(str(c.event[key],4000),`Check the ${key}.`);
+  const uuid=x=>typeof x==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(x);
+  check(uuid(c.event.id),'Invalid event reference.');
+  check(Number.isInteger(c.event.scanOpenMinutesBefore)&&c.event.scanOpenMinutesBefore>=0&&c.event.scanOpenMinutesBefore<=240&&Number.isInteger(c.event.scanDurationMinutes)&&c.event.scanDurationMinutes>=1&&c.event.scanDurationMinutes<=1440,'Set an admission window from 0–240 minutes before doors, lasting 1–1440 minutes.');
+  for(const key of ['cancellationReason','customerMessage','contactEmail','refundPolicy','transferPolicy','emailWelcome','arrivalInfo'])check(str(c.event[key],4000),`Check the event ${key}.`);
+  check(!c.event.contactEmail||/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.event.contactEmail),'Enter a valid organiser email.');
   check(safeURL(c.event.bookingURL)&&c.event.bookingURL.startsWith('https://'),'Use an HTTPS booking address.');
   check(str(c.contact.phone,40)&&/^\+?[\d ()-]{7,40}$/.test(c.contact.phone),'Enter a valid contact telephone number.');
   check(Array.isArray(c.tickets)&&c.tickets.length>0&&c.tickets.length<=12,'Keep between 1 and 12 ticket categories.');
-  for(const t of c.tickets){check(str(t.name,100)&&t.name.trim()&&str(t.desc)&&str(t.detail),'Complete the ticket name and descriptions.');check(Number.isFinite(t.price)&&t.price>=0&&t.price<=10000&&Math.abs(t.price*100-Math.round(t.price*100))<.00001,'Ticket prices need to be between £0 and £10,000, with at most 2 decimal places.');}
+  for(const t of c.tickets){check(uuid(t.id)&&Number.isInteger(t.capacity)&&t.capacity>=1&&t.capacity<=100000&&typeof t.enabled==='boolean','Check the ticket reference, capacity and sales setting.');check(str(t.name,100)&&t.name.trim()&&str(t.desc)&&str(t.detail),'Complete the ticket name and descriptions.');check(Number.isFinite(t.price)&&t.price>=0&&t.price<=10000&&Math.abs(t.price*100-Math.round(t.price*100))<.00001,'Ticket prices need to be between £0 and £10,000, with at most 2 decimal places.');check(!t.enabled||t.price>0,'Paid ticket sales need a price above zero.');}
+  check(new Set(c.tickets.map(t=>t.id)).size===c.tickets.length,'Ticket references must be unique.');
   check(Array.isArray(c.gallery)&&c.gallery.length>0&&c.gallery.length<=100,'Keep between 1 and 100 gallery photographs.');
   for(const p of c.gallery)check(Array.isArray(p)&&p.length===4&&p.every(x=>str(x,1000))&&Object.hasOwn(c.media,p[0])&&['Fight night','Training','Portraits'].includes(p[3]),'Check the gallery image, caption, alt text and category.');
   check(Object.keys(c.media).length<=200,'The image library is full.');

@@ -4,6 +4,9 @@ import fs from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {PGlite} from '@electric-sql/pglite';
 import {pgcrypto} from '@electric-sql/pglite/contrib/pgcrypto';
+import defaults from '../dist/content-defaults.json' with {type:'json'};
+import {validateContent} from '../dist/model.mjs';
+import {initialState} from '../server/content-service.mjs';
 
 // Real PostgreSQL engine, isolated in memory. Auth JWT context is simulated here;
 // hosted Supabase token verification, MFA and device checks still need acceptance testing.
@@ -31,6 +34,65 @@ async function asUser(db,user,aal='aal2',role='authenticated'){
   await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claims',$2,false)",[user||'',JSON.stringify({sub:user,aal})]);
   await db.exec('set role '+role);
 }
+
+test('event publishing atomically closes cancellation sales/admission, queues only its buyers and preserves earlier bookings across new events',async()=>{
+  const db=await database();try{
+    await db.query("update ringside_private.staff set role='owner' where user_id=$1",[ids.scanner]);
+    const content=validateContent(defaults);content.event.id=ids.event;content.event.date='2030-10-24';content.tickets=[{...content.tickets[0],price:250,capacity:10,enabled:true}];
+    await asUser(db,ids.scanner);
+    let state=(await db.query('select public.ringside_website_seed($1) as state',[JSON.stringify(initialState(content))])).rows[0].state;
+    const save=async draft=>{state=(await db.query("select public.ringside_website_change($1,'save',$2) as state",[state.revision,JSON.stringify(draft)])).rows[0].state;};
+    const publish=async()=>{state=(await db.query("select public.ringside_website_change($1,'publish') as state",[state.revision])).rows[0].state;};
+    await publish();const revision=state.revision;
+    await assert.rejects(db.query("select public.ringside_website_change('stale','publish')"),/newer version/);
+    const withdrawal=structuredClone(content);withdrawal.event.fighterStatus='withdrawn';withdrawal.event.fighterNotice='Sohaib Mohammed has withdrawn due to injury. The event is still going ahead.';
+    await save(withdrawal);await publish();await db.exec('reset role');
+    assert.equal((await db.query('select status from ringside_private.events where id=$1',[ids.event])).rows[0].status,'scheduled');
+    const available=(await db.query('select public.ringside_ticket_catalog() as c')).rows[0].c;assert.equal(available.length,1);assert.equal(available[0].fighterStatus,'withdrawn');
+    const withdrawalJobs=(await db.query("select delivery_payload from ringside_private.email_jobs where template_key='fighter-withdrawn-v1'")).rows;
+    assert.equal(withdrawalJobs.length,1);assert.equal(withdrawalJobs[0].delivery_payload.eventStatus,'scheduled');
+    await db.query("update ringside_private.orders set receipt_hash=$1 where id=$2",['d'.repeat(64),ids.order]);
+    assert.equal((await db.query('select public.ringside_receipt($1) as r',['d'.repeat(64)])).rows[0].r.tickets[0].status,'valid');
+    await db.query("update ringside_private.events set scan_opens_at=now()-interval '1 hour',scan_closes_at=now()+interval '1 hour' where id=$1",[ids.event]);
+    await asUser(db,ids.scanner);assert.equal((await db.query('select public.ringside_scan($1,$2,false) as ticket',[ids.event,token])).rows[0].ticket.status,'valid');
+    await asUser(db,ids.scanner);
+    let cancelled=structuredClone(content);cancelled.event.status='cancelled';cancelled.event.cancellationReason='Venue unavailable';cancelled.event.customerMessage='Please contact the organiser to arrange your refund or discuss an optional transfer.';
+    await asUser(db,ids.editor);await save(cancelled);await assert.rejects(publish(),/owner must publish/);
+    await asUser(db,ids.scanner);await publish();
+    await db.exec('reset role');
+    assert.equal((await db.query('select status from ringside_private.events where id=$1',[ids.event])).rows[0].status,'cancelled');
+    assert.equal((await db.query("select count(*)::int n from ringside_private.email_jobs where purpose='event_change' and status='pending'")).rows[0].n,1);
+    assert.equal((await db.query('select public.ringside_ticket_catalog() as c')).rows[0].c.length,0);
+    await assert.rejects(db.query('select public.ringside_reserve_order($1,$2,$3,$4)',['52000000-0000-4000-8000-000000000001',content.tickets[0].id,'new@example.test',JSON.stringify([{name:'Test guest'}])]),/Sales closed/);
+    await asUser(db,ids.scanner);assert.equal((await db.query('select public.ringside_scan($1,$2,true) as t',[ids.event,token])).rows[0].t.status,'closed');
+    await publish();await db.exec('reset role');assert.equal((await db.query("select count(*)::int n from ringside_private.email_jobs where purpose='event_change' and status='pending'")).rows[0].n,1);
+    // A late payment gets the same cancellation notice, not a normal admission email.
+    const late='32000000-0000-4000-8000-000000000001';
+    await db.query("insert into ringside_private.orders(id,event_id,buyer_email,status,total_pence) values($1,$2,'late@example.test','paid',25000)",[late,ids.event]);
+    const jobs=(await db.query('select public.ringside_claim_ticket_emails($1) as jobs',['81000000-0000-4000-8000-000000000001'])).rows[0].jobs;
+    assert.equal(jobs.length,2);assert.ok(jobs.every(j=>j.purpose==='event_change'&&j.eventStatus==='cancelled'&&j.event.cancellationReason==='Venue unavailable'));
+    // Retrying an already-started delivery keeps the originally queued wording.
+    await asUser(db,ids.scanner);cancelled.event.cancellationReason='Updated cancellation explanation';await save(cancelled);await publish();
+    await db.exec('reset role');assert.equal((await db.query('select delivery_payload from ringside_private.email_jobs where id=$1',[jobs[0].id])).rows[0].delivery_payload.event.cancellationReason,'Venue unavailable');
+    await db.query("update ringside_private.orders set receipt_hash=$1 where id=$2",['c'.repeat(64),ids.order]);
+    const receipt=(await db.query('select public.ringside_receipt($1) as r',['c'.repeat(64)])).rows[0].r;assert.equal(receipt.tickets[0].status,'event_cancelled');
+    await db.query('select public.ringside_booking_request($1,$2,$3)',['c'.repeat(64),'refund','Please arrange a refund.']);
+    await db.query('select public.ringside_booking_request($1,$2,$3)',['c'.repeat(64),'refund','Retry']);
+    assert.equal((await db.query('select count(*)::int n from ringside_private.booking_requests')).rows[0].n,1);
+    let next=structuredClone(content);next.event.id='72000000-0000-4000-8000-000000000001';next.event.title='The next boxing event';next.tickets[0].id='73000000-0000-4000-8000-000000000001';
+    await asUser(db,ids.scanner);await save(next);await publish();
+    await asUser(db,null,'aal1','anon');const publicContent=(await db.query('select public.ringside_website_read() as c')).rows[0].c;
+    assert.equal(publicContent.event.id,next.event.id);assert.equal(publicContent.eventNotices[0].id,ids.event);assert.equal(JSON.stringify(publicContent).includes('buyer@example.test'),false);
+    await assert.rejects(db.query('select public.ringside_website_read(true)'),/authenticator/);
+    await assert.rejects(db.query('select public.ringside_website_change($1,$2)',[revision,'publish']),/permission denied/);
+    await db.exec('reset role');assert.equal((await db.query('select event_id from ringside_private.orders where id=$1',[ids.order])).rows[0].event_id,ids.event);
+    await assert.rejects(db.query('select public.ringside_reserve_current($1,$2,$3,$4,$5)',['52000000-0000-4000-8000-000000000002',next.tickets[0].id,'guest@example.test',JSON.stringify([{name:'Test guest'}]),0]),/details changed/);
+    await db.query('select public.ringside_reserve_current($1,$2,$3,$4,$5)',['52000000-0000-4000-8000-000000000002',next.tickets[0].id,'guest@example.test',JSON.stringify([{name:'Test one'},{name:'Test two'}]),1]);
+    await asUser(db,ids.scanner);const invalidCapacity=structuredClone(next);invalidCapacity.tickets[0].capacity=1;invalidCapacity.event.venue='Should never publish';await save(invalidCapacity);await assert.rejects(publish(),/Capacity cannot/);
+    await db.exec('reset role');assert.equal((await db.query('select venue from ringside_private.events where id=$1',[next.event.id])).rows[0].venue,next.event.venue);
+    await asUser(db,ids.scanner);cancelled.event.status='scheduled';await save(cancelled);await assert.rejects(publish(),/closed/);
+  }finally{await db.close();}
+});
 test('private tables enforce RLS and prevent direct access or self-promotion',async()=>{
   const db=await database();try{
     const tables=await db.query("select relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='ringside_private' and c.relkind='r'");

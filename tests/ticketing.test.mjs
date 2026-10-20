@@ -22,8 +22,9 @@ test('payment webhook verifies original bytes, rejects stale/future/tampered not
 });
 test('printed QR image decodes to the exact admission token and not attendee data',async()=>{
   const key=randomBytes(32).toString('hex'),id='10000000-0000-4000-8000-000000000001',downloadToken='r'.repeat(43);
-  const db={async rpc(name,args){assert.equal(name,'ringside_receipt');assert.equal(args.p_hash,hashToken(downloadToken));return {data:{tickets:[{id,name:'Private attendee',category:'VIP'}]},error:null};}};
+  const db={async rpc(name,args){assert.equal(name,'ringside_receipt');assert.equal(args.p_hash,hashToken(downloadToken));return {data:{tickets:[{id,name:'Private attendee',category:'VIP',status:'valid'},{id:'cancelled-ticket',status:'event_cancelled'}]},error:null};}};
   const order=await receipt(db,{ticketKey:key},downloadToken),image=PNG.sync.read(Buffer.from(order.tickets[0].qr.split(',')[1],'base64'));
   const decoded=jsQR(new Uint8ClampedArray(image.data),image.width,image.height);
   assert.equal(decoded.data,ticketToken(id,key));assert.equal(decoded.data.includes('Private attendee'),false);
+  assert.equal(order.tickets[1].qr,undefined);assert.equal(order.tickets[1].token,undefined);
 });

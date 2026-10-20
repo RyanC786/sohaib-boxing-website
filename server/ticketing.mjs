@@ -8,7 +8,10 @@ export function ticketToken(id,key,purpose='admission'){
   return createHmac('sha256',Buffer.from(key,'hex')).update(`ringside:${purpose}:v1:${id}`).digest('base64url');
 }
 export function ticketConfiguration(env=process.env){
-  if(env.TICKETING_ENABLED!=='true'||!env.SUPABASE_URL||!env.SUPABASE_SECRET_KEY||! /^[a-f0-9]{64}$/i.test(env.RINGSIDE_TICKET_KEY||''))return null;
+  if(env.TICKETING_ENABLED!=='true')return null;return deliveryConfiguration(env);
+}
+export function deliveryConfiguration(env=process.env){
+  if(!env.SUPABASE_URL||!env.SUPABASE_SECRET_KEY||! /^[a-f0-9]{64}$/i.test(env.RINGSIDE_TICKET_KEY||''))return null;
   return {url:env.SUPABASE_URL,key:env.SUPABASE_SECRET_KEY,ticketKey:env.RINGSIDE_TICKET_KEY,stripeKey:env.STRIPE_SECRET_KEY,webhookSecret:env.STRIPE_WEBHOOK_SECRET,origin:env.PUBLIC_SITE_URL};
 }
 export const database=config=>createClient(config.url,config.key,{auth:{persistSession:false,autoRefreshToken:false},global:{fetch:(url,options)=>fetch(url,{...options,signal:AbortSignal.timeout(12000)})}});
@@ -29,6 +32,7 @@ export async function receipt(db,config,token){
   if(!order)throw fail('Tickets are not available yet, or this link has been withdrawn. Check the booking email or contact the organiser.',404);
   order.tickets=await Promise.all(order.tickets.map(async ticket=>{
     const token=ticketToken(ticket.id,config.ticketKey);
+    if(ticket.status!=='valid')return ticket;
     return {...ticket,token,qr:await QRCode.toDataURL(token,{errorCorrectionLevel:'M',margin:4,width:360,color:{dark:'#000000',light:'#ffffff'}})};
   }));return order;
 }

@@ -12,6 +12,7 @@ import ticket from '../netlify/functions/ticket.mjs';
 import stripeWebhook from '../netlify/functions/stripe-webhook.mjs';
 import {cmsIdentity} from '../server/cms-auth.mjs';
 import {readState,changeState} from '../server/content-service.mjs';
+import eventOffice from '../netlify/functions/event-office.mjs';
 process.env.CMS_ADMIN_PASSWORD||='local-preview-only-ringside';
 await fs.mkdir('.cms-local',{recursive:true});
 const store={async getWithMetadata(){try{return JSON.parse(await fs.readFile('.cms-local/content.json','utf8'))}catch{return null}},async setJSON(key,data,condition){const current=await this.getWithMetadata();if(condition.onlyIfNew&&current||condition.onlyIfMatch&&condition.onlyIfMatch!==current?.etag)return {modified:false};const etag=randomUUID();await fs.writeFile('.cms-local/content.json',JSON.stringify({data,etag}));return {modified:true,etag};}};
@@ -22,6 +23,7 @@ http.createServer(async(incoming,out)=>{
     const url=new URL(incoming.url,'http://127.0.0.1:4173');
     const req=new Request(url,{method:incoming.method,headers:incoming.headers,...(!['GET','HEAD'].includes(incoming.method)?{body:Buffer.concat(chunks)}:{})});let res;
     if(url.pathname==='/api/session')res=await session(req);
+    else if(url.pathname==='/api/admin/events')res=await eventOffice(req);
     else if(url.pathname==='/api/door/auth')res=await doorAuth(req);
     else if(['/api/door/events','/api/door/scan'].includes(url.pathname))res=await door(req);
     else if(url.pathname.startsWith('/api/ticket/'))res=await ticket(req);
