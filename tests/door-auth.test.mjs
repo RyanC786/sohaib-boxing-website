@@ -45,16 +45,22 @@ test('individual account mode never falls back to a shared password when configu
 test('recovery specifies the website destination and reports provider failure instead of claiming an email was sent',async()=>{
   const saved={...process.env},originalFetch=globalThis.fetch;
   Object.assign(process.env,{SUPABASE_URL:'https://project.example.test',SUPABASE_PUBLISHABLE_KEY:'test-public',DOOR_SESSION_KEY:'a'.repeat(64)});
-  let destination;
+  let destination,providerStatus=500,providerCode='unexpected_failure';
   globalThis.fetch=async(url,options)=>{
     assert.match(String(url),/\/auth\/v1\/recover/);
     destination=new URL(url).searchParams.get('redirect_to');
-    return new Response(JSON.stringify({msg:'email provider unavailable',code:'unexpected_failure'}),{status:500,headers:{'Content-Type':'application/json'}});
+    return new Response(JSON.stringify({msg:'synthetic provider failure',code:providerCode}),{status:providerStatus,headers:{'Content-Type':'application/json','X-Supabase-Api-Version':'2024-01-01'}});
   };
   try{
     const response=await auth(new Request('https://boxing.test/api/door/auth',{method:'POST',headers:{origin:'https://boxing.test','Content-Type':'application/json'},body:JSON.stringify({action:'recover',email:'owner@example.test'})}));
     assert.equal(destination,'https://boxing.test/door/?next=admin');assert.equal(response.status,503);
     assert.match((await response.json()).error,/could not be sent/);
+    providerStatus=429;providerCode='over_email_send_rate_limit';
+    const limited=await auth(new Request('https://boxing.test/api/door/auth',{method:'POST',headers:{origin:'https://boxing.test','Content-Type':'application/json'},body:JSON.stringify({action:'recover',email:'owner@example.test'})}));
+    assert.equal(limited.status,429);assert.match((await limited.json()).error,/up to one hour/);assert.equal(limited.headers.has('Set-Cookie'),false);
+    providerCode='over_request_rate_limit';
+    const throttled=await auth(new Request('https://boxing.test/api/door/auth',{method:'POST',headers:{origin:'https://boxing.test','Content-Type':'application/json'},body:JSON.stringify({action:'recover',email:'owner@example.test'})}));
+    assert.equal(throttled.status,429);assert.match((await throttled.json()).error,/Too many recovery requests/);
     const invalid=await auth(new Request('https://boxing.test/api/door/auth',{method:'POST',headers:{origin:'https://boxing.test','Content-Type':'application/json'},body:JSON.stringify({action:'email-link',type:'signup',access_token:'x',refresh_token:'y'})}));
     assert.equal(invalid.status,400);assert.equal(invalid.headers.has('Set-Cookie'),false);
   }finally{globalThis.fetch=originalFetch;process.env=saved;}

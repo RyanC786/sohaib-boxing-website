@@ -30,6 +30,8 @@ export default async req=>{
       if(typeof data.email!=='string'||data.email.length>254)throw fail('Enter your email address.');
       const destination=new URL('/door/?next=admin',req.url).href;
       const result=await client(config).auth.resetPasswordForEmail(data.email.trim(),{redirectTo:destination});
+      if(result.error?.code==='over_email_send_rate_limit')throw fail('The recovery email limit has been reached. Please wait up to one hour before requesting another email. You can still sign in with your existing password.',429);
+      if(result.error?.status===429)throw fail('Too many recovery requests. Please wait before requesting another email. You can still sign in with your existing password.',429);
       if(result.error)throw fail('Recovery email could not be sent. Please wait a few minutes and try again, or contact the organiser.',503);
       return json({message:'If that account exists, a recovery email will arrive. Open its reset link, or enter its recovery code below.'});
     }
