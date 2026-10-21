@@ -11,7 +11,7 @@ pages=[
 ('01 / Start here', 'Boxing tickets & door app', [
 ('Purpose', 'Connect your separate Stripe sandbox first. Test the complete purchase, email, printed QR and admission journey. Repeat the checks in the organiser\'s Stripe account before enabling real payments.'),
 ('Current destinations', 'Website: https://sohaib-boxing.netlify.app/\nOwner login: /door/?next=admin\nStaff app: /door/\nPhone instructions: /door/install/\nSupabase project: eoyougxlheclxqkbmlud\nTemporary email domain: siteboss.co'),
-('Activation status - 21 October 2026', 'The owner has confirmed password recovery, authenticator and admin login work. Event and staff updates are prepared on codex/event-workflow; hosted migration and deployment must be verified separately. Sandbox payments, ticket emails, invitations and physical-phone acceptance remain activation steps. Do not treat passing local tests as proof of live delivery.'),
+('Activation status - 21 October 2026', 'The owner has confirmed password recovery, authenticator and admin login work. Event and staff migrations were applied on Supabase and 17 private RLS tables verified. Netlify published commit 444ca61; the public installation page was checked. Protected owner import and staff controls still need a signed-in acceptance check. Sandbox payments, ticket emails, invitations and physical-phone acceptance remain activation steps. Do not treat passing local tests as proof of live delivery.'),
 ('Workflow', 'Publish one event and its inventory -> reserve server-priced tickets -> pay in Stripe Checkout -> signed webhook confirms payment -> issue one opaque QR per attendee -> email private printable ticket link -> assigned staff scan -> compare name with ID -> tap Admit -> any subsequent admission is rejected.'),
 ('Before starting', '[ ] Confirm the sandbox account name and account ID.\n[ ] Confirm test mode; do not use another business account.\n[ ] Use a dedicated test event and authorised test recipients.\n[ ] Keep real sales disabled until every acceptance check passes.\n[ ] Record results and provider IDs, never secret values.'),
 ]),
@@ -75,3 +75,4 @@ def footer(c,doc):
 SimpleDocTemplate(str(out),pagesize=(595.28,841.89),rightMargin=46,leftMargin=46,topMargin=43,bottomMargin=54).build(story,onFirstPage=footer,onLaterPages=footer)
 (root/'STRIPE-AND-DOOR-HANDOVER.md').write_text('\n'.join(md),encoding='utf-8')
 print(out)
+

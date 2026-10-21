@@ -19,7 +19,7 @@ Temporary email domain: siteboss.co
 
 ### Activation status - 21 October 2026
 
-The owner has confirmed password recovery, authenticator and admin login work. Event and staff updates are prepared on codex/event-workflow; hosted migration and deployment must be verified separately. Sandbox payments, ticket emails, invitations and physical-phone acceptance remain activation steps. Do not treat passing local tests as proof of live delivery.
+The owner has confirmed password recovery, authenticator and admin login work. Event and staff migrations were applied on Supabase and 17 private RLS tables verified. Netlify published commit 444ca61; the public installation page was checked. Protected owner import and staff controls still need a signed-in acceptance check. Sandbox payments, ticket emails, invitations and physical-phone acceptance remain activation steps. Do not treat passing local tests as proof of live delivery.
 
 ### Workflow
 
