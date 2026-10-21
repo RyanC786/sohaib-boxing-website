@@ -8,7 +8,7 @@
   NODE_VERSION = "22"
   # These are public configuration values, not credentials. Keep scanning enabled
   # for real secrets, including DOOR_SESSION_KEY and every privileged provider key.
-  SECRETS_SCAN_OMIT_KEYS = "AUTH_MODE,PUBLIC_SITE_URL,SUPABASE_URL"
+  SECRETS_SCAN_OMIT_KEYS = "AUTH_MODE,PUBLIC_SITE_URL,SUPABASE_URL,TICKET_FROM_EMAIL"
 
 [functions]
   directory = "netlify/functions"
