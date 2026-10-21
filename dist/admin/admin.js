@@ -1,9 +1,10 @@
 import {escapeHTML as e,validateContent,eventDates} from '/model.mjs';
 import {eventFields,fighterFields,admissionFields,ticketFields,renderOffice,selectEvent,newEvent} from './events.js';
+import {renderStaff} from './staff.js';
 const app=document.querySelector('#app'),notice=document.querySelector('#notice');
 let state,draft,tab='overview',dirty=false,busy=false,page='/',catalog=[],pageLinks=[],noticeTimer;
 const paths={'/':'Home','/events/':'Events','/about/':'The fighter','/gallery/':'Gallery','/work-with-me/':'Partnerships','/become-a-sponsor/':'Sponsorship','/invite/':'Appearances','/contact/':'Contact','/faq/':'FAQs','/my-tickets/':'My tickets'};
-const sections=[['overview','◉','Overview'],['event','◷','Next event'],['tickets','▤','Ticket prices'],['media','▧','Image library'],['gallery','▦','Gallery'],['copy','Aa','Page wording'],['history','↶','Publishing'],['ticketing','◇','Digital tickets']];
+const sections=[['overview','◉','Overview'],['event','◷','Next event'],['tickets','▤','Ticket prices'],['media','▧','Image library'],['gallery','▦','Gallery'],['copy','Aa','Page wording'],['history','↶','Publishing'],['ticketing','◇','Digital tickets'],['staff','◎','Door team']];
 const logo='<div class="logo"><b>S<em>M</em></b><span>RINGSIDE STUDIO<small>WEBSITE MANAGEMENT</small></span></div>';
 const label=s=>s.replace(/-/g,' ').replace(/\.(jpg|jpeg|png|webp)$/,'');
 const date=s=>s?new Date(s).toLocaleString('en-GB'):'Original website';
@@ -25,6 +26,7 @@ function render(){document.querySelectorAll('[data-tab]').forEach(b=>b.setAttrib
   if(tab==='event')out.insertAdjacentHTML('beforeend','<div class="panel"><h2>Preview the customer email</h2><p>Review the confirmation or event-update message with example booking details. No email is sent.</p><div class="actions"><button data-email-preview="confirmation">Preview booking confirmation</button><button data-email-preview="update">Preview current event update</button></div><div id="email-preview"></div></div>');
   if(tab==='tickets')out.insertAdjacentHTML('beforeend',ticketFields(draft,field));
   if(tab==='ticketing')renderOffice(out,api);
+  if(tab==='staff')renderStaff(out,api);
   if(!state.workflowReady)out.insertAdjacentHTML('afterbegin','<div class="banner">The event database update has not been activated here. Content can be prepared, but connected event publishing and notifications need activation.</div>');
 }
 function mark(){dirty=true;document.querySelector('#save-status').textContent='Unsaved changes';}
@@ -36,10 +38,13 @@ function copyFields(){const fields=document.querySelector('#copy-fields');if(!fi
 window.addEventListener('message',event=>{const frame=document.querySelector('iframe');if(event.origin!==location.origin||event.source!==frame?.contentWindow||event.data?.type!=='ringside-catalog')return;page=event.data.path==='/'?'/':event.data.path+'/';document.querySelector('#page').value=page;catalog=event.data.text;pageLinks=event.data.links;draft.pages??={};draft.pages[event.data.path]??={title:event.data.title,description:event.data.description};copyFields();});
 app.addEventListener('input',event=>{const input=event.target;if(input.dataset.path){const path=JSON.parse(input.dataset.path),key=path.pop(),target=path.reduce((o,k)=>o[k],draft);target[key]=key==='enabled'?input.value==='true':input.type==='number'?Number(input.value):input.value;mark();}if(input.dataset.crop){const key=input.dataset.crop,parts=draft.media[key].position.split(' ');parts[Number(input.dataset.axis)]=input.value+'%';draft.media[key].position=parts.join(' ');draft.media[key].customCrop=true;input.closest('article').querySelector('img').style.objectPosition=parts.join(' ');mark();}});
 app.addEventListener('submit',event=>{if(!event.target.dataset.requestId)return;event.preventDefault();const form=event.target;run(async()=>{await api('/api/admin/events',{method:'POST',body:JSON.stringify({id:form.dataset.requestId,...Object.fromEntries(new FormData(form))})});tell('Request progress saved. No payment or ticket was changed.');render();});});
+app.addEventListener('submit',event=>{if(event.target.id!=='staff-invite')return;event.preventDefault();const form=event.target;run(async()=>{const data=Object.fromEntries(new FormData(form));if(!confirm(`${data.action==='invite'?'Invite':'Give staff access to'} ${data.email} as ${data.role}?`))return;await api('/api/admin/staff',{method:'POST',body:JSON.stringify(data)});tell(data.action==='invite'?'Invitation sent and staff access assigned. Assign their scanning events below.':'Staff account added. Assign their scanning events below.');render();});});
+app.addEventListener('change',event=>{const input=event.target;if(!input.dataset.assignUser)return;run(async()=>{await api('/api/admin/staff',{method:'POST',body:JSON.stringify({action:'assign',userId:input.dataset.assignUser,eventId:input.dataset.assignEvent,active:input.checked})});tell('Event assignment saved.');}).finally(()=>render());});
 app.addEventListener('change',event=>{if(event.target.dataset.upload)run(()=>upload(event.target.files[0],event.target.dataset.upload));if(event.target.id==='new-photo')run(()=>upload(event.target.files[0]));if(event.target.id==='page'){page=event.target.value;render();}});
 app.addEventListener('click',event=>{const b=event.target.closest('button');if(!b)return;if(b.dataset.tab){tab=b.dataset.tab;render();return;}
   run(async()=>{
     if(b.id==='save'){await save();tell('Draft saved. The public website is unchanged.');}
+    if(b.dataset.staffActive){await api('/api/admin/staff',{method:'POST',body:JSON.stringify({action:'active',userId:b.dataset.staffActive,active:b.dataset.active==='true'})});tell('Staff access updated.');render();}
     if(b.id==='publish'){
       if(['cancelled','postponed'].includes(draft.event.status)&&!confirm(`Publish this event as ${draft.event.status.toUpperCase()}? Booking and admission close, the website displays the notice, and customer notifications are queued. Refunds and transfers are separate actions.`))return;
       if(!['cancelled','postponed','completed'].includes(draft.event.status)&&draft.event.fighterStatus==='withdrawn'&&!confirm(`Publish the fighter withdrawal notice for ${draft.event.fighter}? The event remains ${draft.event.status}; booking and admission follow the event status. Customer updates will be queued.`))return;

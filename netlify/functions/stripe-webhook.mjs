@@ -1,4 +1,4 @@
-import {ticketConfiguration,database,rpc,verifyStripe,issuedTickets} from '../../server/ticketing.mjs';
+import {ticketConfiguration,database,rpc,verifyStripe,issuedTickets,stripeKeyMode} from '../../server/ticketing.mjs';
 import {fail,errorResponse} from '../../server/door-auth.mjs';
 import {json} from '../../server/auth.mjs';
 export default async req=>{
@@ -9,7 +9,8 @@ export default async req=>{
     const event=verifyStripe(raw,req.headers.get('stripe-signature'),config.webhookSecret),object=event.data?.object;
     if(!event.id||!object?.id)throw fail('Invalid payment notification.');
     // Never accept live notifications while using a test key, or vice versa.
-    if(!config.stripeKey||event.livemode!==config.stripeKey.startsWith('sk_live_'))throw fail('Payment mode mismatch.');
+    const mode=stripeKeyMode(config.stripeKey);
+    if(!mode||event.livemode!==(mode==='live'))throw fail('Payment mode mismatch.');
     const db=database(config);
     if(['checkout.session.completed','checkout.session.async_payment_succeeded'].includes(event.type)){
       if(object.payment_status!=='paid')return json({received:true,awaitingPayment:true});

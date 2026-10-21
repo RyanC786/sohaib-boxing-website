@@ -7,7 +7,7 @@ The repository is not currently a complete Vercel deployment. Importing `dist` a
 ## Preserve data and accounts
 
 - Keep the existing Supabase project, Auth users, protected staff roles, event assignments, tickets, orders and consent records. Hosting migration must not create a second ticket database.
-- Move the CMS's Netlify Blobs document and uploaded image objects to a portable store (Supabase database and Storage are the intended destination). Preserve draft/published content, revision conflict detection, publication history, image metadata and existing media links until replacement objects are verified.
+- Verify the CMS import to Supabase through the protected website adapter (event migration applied 21 October); migrate remaining Netlify Blobs image objects and the legacy import adapter. Preserve drafts, publications, revision checks, history and media links until replacements are verified.
 - Export and verify content/images before changing the storage adapter. Do not delete the old store as part of the first migration.
 - Keep the admission QR signing key and receipt-token key material unchanged during the host move. Existing opaque QR tokens must continue to identify the same admission. A host move is not a reason to rotate ticket tokens or make attendees print replacement tickets.
 
@@ -30,4 +30,4 @@ The repository is not currently a complete Vercel deployment. Importing `dist` a
 
 Initial app owner: `ryan786w@gmail.com`. Later transfer ownership to `info@sohaibboxing.com` after that account is verified, MFA-enrolled and tested. Staff receive individual accounts; sharing the hosting-provider owner's account is not the admission workflow.
 
-Before live sales, finish CMS-to-event/inventory synchronisation, confirm capacities/admission windows and booking policies, provision the verified sender, and pass the acceptance checks in `supabase/ACTIVATION.md`. Neither the hosting move nor the domain change should silently enable payments, marketing or data deletion.
+CMS-to-event/inventory synchronisation is implemented with the event migration. Before live sales verify the deployed adapter/import, capacities/admission windows, policies, sender and sandbox acceptance in `supabase/ACTIVATION.md`. Neither the hosting move nor the domain change should silently enable payments, marketing or data deletion.

@@ -3,7 +3,11 @@ import assert from 'node:assert/strict';
 import {createHmac,randomBytes} from 'node:crypto';
 import {PNG} from 'pngjs';
 import jsQR from 'jsqr';
-import {ticketToken,hashToken,verifyStripe,receipt,ticketConfiguration} from '../server/ticketing.mjs';
+import {ticketToken,hashToken,verifyStripe,receipt,ticketConfiguration,stripeKeyMode} from '../server/ticketing.mjs';
+test('webhook payment mode recognises standard and restricted keys and rejects invalid keys',()=>{
+  for(const prefix of ['sk','rk'])for(const mode of ['test','live'])assert.equal(stripeKeyMode(`${prefix}_${mode}_fixture123`),mode);
+  for(const key of ['',undefined,'pk_test_fixture','something','sk_test_'])assert.equal(stripeKeyMode(key),null);
+});
 test('QR tokens are opaque, domain-separated and reproducible for resending the same ticket',()=>{
   const key=randomBytes(32).toString('hex'),id='10000000-0000-4000-8000-000000000001';
   const token=ticketToken(id,key);assert.match(token,/^[A-Za-z0-9_-]{43}$/);assert.equal(token,ticketToken(id,key));

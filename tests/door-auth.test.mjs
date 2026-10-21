@@ -6,6 +6,34 @@ import door from '../netlify/functions/door.mjs';
 import auth from '../netlify/functions/door-auth.mjs';
 import {cmsIdentity} from '../server/cms-auth.mjs';
 import cmsSession from '../netlify/functions/session.mjs';
+import staff from '../netlify/functions/staff.mjs';
+
+test('staff API requires owner MFA, validates grants and keeps invitations disabled without a server key',async()=>{
+  const saved={...process.env},originalFetch=globalThis.fetch,key='d'.repeat(64);
+  Object.assign(process.env,{SUPABASE_URL:'https://project.example.test',SUPABASE_PUBLISHABLE_KEY:'synthetic-public',DOOR_SESSION_KEY:key});delete process.env.SUPABASE_SECRET_KEY;
+  const jwt=[Buffer.from('{"alg":"HS256"}').toString('base64url'),Buffer.from(JSON.stringify({sub:'test-user',exp:Math.floor(Date.now()/1000)+3600,aal:'aal2'})).toString('base64url'),'c3ludGhldGlj'].join('.');
+  let role='owner',mfa=true,grants=0;
+  const reply=data=>new Response(JSON.stringify(data),{headers:{'Content-Type':'application/json'}});
+  globalThis.fetch=async(url,options)=>{
+    const path=new URL(url).pathname;
+    if(path==='/auth/v1/user')return reply({id:'test-user',aud:'authenticated',email:'owner@example.test',email_confirmed_at:'2026-10-19T00:00:00Z'});
+    if(path==='/rest/v1/rpc/ringside_access')return reply({role,mfaVerified:mfa});
+    if(path==='/rest/v1/rpc/ringside_staff_office')return reply({staff:[],events:[]});
+    if(path==='/rest/v1/rpc/ringside_manage_staff'){grants++;return reply({ok:true});}
+    throw Error('Unexpected provider request: '+path);
+  };
+  const request=(data,origin='https://boxing.test')=>new Request('https://boxing.test/api/admin/staff',{method:data?'POST':'GET',headers:{origin,'Content-Type':'application/json',cookie:'ringside_door='+seal({access_token:jwt,refresh_token:'synthetic-refresh'},key)},...(data?{body:JSON.stringify(data)}:{})});
+  try{
+    const office=await staff(request());assert.equal(office.status,200);assert.equal((await office.json()).invitesEnabled,false);
+    assert.equal((await staff(request({action:'invite',email:'staff@example.test',role:'scanner'}))).status,503);
+    assert.equal((await staff(request({action:'grant',email:'staff@example.test',role:'owner'}))).status,400);
+    assert.equal((await staff(request({action:'grant',email:'staff@example.test',role:'scanner'},'https://other.test'))).status,403);
+    assert.equal(grants,0);
+    assert.equal((await staff(request({action:'grant',email:'staff@example.test',role:'scanner'}))).status,200);assert.equal(grants,1);
+    role='editor';assert.equal((await staff(request())).status,403);
+    role='owner';mfa=false;assert.equal((await staff(request())).status,403);
+  }finally{globalThis.fetch=originalFetch;process.env=saved;}
+});
 test('staff session is encrypted, authenticated, expires and fails closed after key rotation',()=>{
   const key=randomBytes(32).toString('hex'),tokens={access_token:'private-access-token',refresh_token:'private-refresh-token'};
   const cookie=seal(tokens,key,1000);

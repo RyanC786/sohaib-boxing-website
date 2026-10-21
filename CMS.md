@@ -4,9 +4,9 @@ The Netlify-backed dashboard lives at `/admin/`. It edits events, ticket display
 
 ## Activate once
 
-In the existing Netlify project's **Project configuration → Environment variables**, add `CMS_ADMIN_PASSWORD`, using a private password of at least 20 characters, available to Functions. Redeploy and sign in at `https://sohaib-boxing.netlify.app/admin/`. Do not put this value in GitHub or chat. Production has no default password; it stays locked until configured.
+Production uses individual Supabase accounts and MFA with `AUTH_MODE=supabase`. Owner recovery, MFA and admin login were confirmed working by the user. The legacy shared-password adapter is for local/old deployments; it cannot bypass missing configuration in Supabase mode. See `supabase/ACTIVATION.md`.
 
-Netlify automatically provides storage credentials. The CMS uses site-wide `ringside-cms` and `ringside-images` Blobs stores, which survive code deployments. Deploy the full GitHub repository, not a manual upload of only `dist`. The old ChatGPT Sites preview is a separate static deployment and does not run this backend.
+The event migration and `server/website-service.mjs` import the existing `ringside-cms` Blobs document on the first protected admin read; Supabase then owns transactional content/event publication. Uploaded images remain in the `ringside-images` Blobs store. Preserve both stores during migration. Deploy the full repository; uploading only `dist` omits the backend. The old ChatGPT Sites preview is separate.
 
 ## Editing
 
@@ -18,7 +18,7 @@ Upload JPEG, PNG or WebP images up to 4 MB. Existing artistic crops remain until
 
 ## Access
 
-This release is a single-owner CMS, with signed eight-hour HttpOnly/Secure/SameSite cookies, same-origin write checks and Netlify login rate limiting. Changing the server password revokes all sessions; sign-out removes the browser cookie. There is no staff invitation, per-person audit trail, MFA or password-reset email yet. Add distinct staff roles before handling customer records or door scanning.
+Owner/editor roles are protected in Supabase and require MFA. Owners publish event/inventory changes and manage staff; editors cannot grant roles or bypass publication restrictions. The Door team screen adds/invites personal accounts, pauses non-owner staff and assigns scanners to events. Invitations require the protected server connection and verified SMTP. Installation alone grants no access. Hosted migrations through `202610210001` were applied on 21 October 2026; all 17 private tables have RLS enabled.
 
 If live content cannot be retrieved, the site shows a warning and disables booking links; fallback prices are not represented as current.
 
@@ -28,4 +28,4 @@ Node 22+: `npm ci`, `npm test`, `npm run dev`. Open `http://127.0.0.1:4173/admin
 
 ## Ticketing limitation
 
-This dashboard does not yet process Stripe payments, issue QR tickets, send ticket emails or scan admissions. Prices here are display prices: the existing external booking provider must be updated separately until checkout is integrated. See `TICKETING.md`.
+The ticketing backend, atomic event/inventory publication, printable QR receipts, event-notice outbox and protected scanner are implemented. Sandbox credentials, ticket-email settings, deployed-route checks and phone acceptance are separate activation steps. Existing external booking links remain until first-party checkout is deliberately enabled. Refund/transfer requests track progress; they do not execute refunds or replacement issuance. See `TICKETING.md`, `EVENT-WORKFLOW.md` and `STRIPE-AND-DOOR-HANDOVER.md`.

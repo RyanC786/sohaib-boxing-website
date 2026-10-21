@@ -93,6 +93,27 @@ test('event publishing atomically closes cancellation sales/admission, queues on
     await asUser(db,ids.scanner);cancelled.event.status='scheduled';await save(cancelled);await assert.rejects(publish(),/closed/);
   }finally{await db.close();}
 });
+test('owner manages individual staff and event access; MFA and owner protections cannot be bypassed',async()=>{
+  const db=await database();try{
+    await db.query("update ringside_private.staff set role='owner' where user_id=$1",[ids.scanner]);
+    const manage=(action,args={})=>db.query('select public.ringside_manage_staff($1,$2,$3,$4,$5,$6)',[action,args.email||null,args.role||null,args.user||null,args.event||null,args.active??null]);
+    await asUser(db,ids.scanner,'aal1');await assert.rejects(manage('grant',{email:'other@example.test',role:'scanner'}),/authenticator/);
+    await asUser(db,ids.editor);await assert.rejects(manage('grant',{email:'other@example.test',role:'scanner'}),/Owner access/);
+    await asUser(db,ids.scanner);await assert.rejects(manage('grant',{email:'other@example.test',role:'owner'}),/scanner or editor/);
+    await assert.rejects(manage('active',{user:ids.scanner,active:false}),/non-owner/);
+    await manage('grant',{email:'OTHER@example.test',role:'scanner'});
+    await asUser(db,ids.other);await assert.rejects(db.query('select public.ringside_staff_office()'),/Not authorised/);
+    await assert.rejects(db.query('select public.ringside_scan($1,$2,false)',[ids.event,token]),/Not authorised/);
+    await asUser(db,ids.scanner);await manage('assign',{user:ids.other,event:ids.event,active:true});
+    const office=(await db.query('select public.ringside_staff_office() as office')).rows[0].office;
+    assert.deepEqual(office.staff.find(s=>s.id===ids.other).events,[ids.event]);
+    await asUser(db,ids.other);assert.equal((await db.query('select public.ringside_scan($1,$2,false) as t',[ids.event,token])).rows[0].t.status,'valid');
+    await asUser(db,ids.scanner);await manage('active',{user:ids.other,active:false});
+    await asUser(db,ids.other);await assert.rejects(db.query('select public.ringside_scan($1,$2,false)',[ids.event,token]),/Not authorised/);
+    await db.exec('reset role');assert.equal((await db.query('select count(*)::int n from ringside_private.staff_audit')).rows[0].n,3);
+  }finally{await db.close();}
+});
+
 test('private tables enforce RLS and prevent direct access or self-promotion',async()=>{
   const db=await database();try{
     const tables=await db.query("select relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='ringside_private' and c.relkind='r'");
