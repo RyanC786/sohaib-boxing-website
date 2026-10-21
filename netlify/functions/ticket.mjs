@@ -1,4 +1,4 @@
-import {ticketConfiguration,deliveryConfiguration,database,rpc,receipt,ticketToken,hashToken} from '../../server/ticketing.mjs';
+import {ticketConfiguration,deliveryConfiguration,database,rpc,receipt,ticketToken,hashToken,validWebhookSecret} from '../../server/ticketing.mjs';
 import {body,fail,errorResponse} from '../../server/door-auth.mjs';
 import {json} from '../../server/auth.mjs';
 import {checkoutAccess} from '../../server/checkout-access.mjs';
@@ -17,7 +17,7 @@ export default async req=>{
       return json(await rpc(db,'ringside_booking_request',{p_hash:hashToken(data.token),p_kind:data.kind,p_message:data.message}));
     }
     if(path!=='/api/ticket/checkout')throw fail('Unknown ticket request.',404);
-    if(!config.stripeKey||!config.webhookSecret||!config.origin||new URL(config.origin).origin!==new URL(req.url).origin||process.env.TICKET_EMAIL_ENABLED!=='true'||!process.env.RESEND_API_KEY||!process.env.TICKET_FROM_EMAIL||!process.env.TURNSTILE_SECRET_KEY)throw fail('Ticket payments and email delivery are awaiting activation.',503);
+    if(!config.stripeKey||!validWebhookSecret(config.webhookSecret)||!config.origin||new URL(config.origin).origin!==new URL(req.url).origin||process.env.TICKET_EMAIL_ENABLED!=='true'||!process.env.RESEND_API_KEY||!process.env.TICKET_FROM_EMAIL||!process.env.TURNSTILE_SECRET_KEY)throw fail('Ticket payments and email delivery are awaiting activation.',503);
     if(! /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email||'')||data.email.length>254||! /^[0-9a-f-]{36}$/i.test(data.category||'')||! /^[0-9a-f-]{36}$/i.test(data.requestId||'')||!Array.isArray(data.attendees)||!data.attendees.length||data.attendees.length>8||data.attendees.some(name=>typeof name!=='string'||name.trim().length<2||name.length>100))throw fail('Enter your email and a name for each attendee (up to eight tickets).');
     if(typeof data.challenge!=='string'||data.challenge.length>2048)throw fail('Complete the booking security check.');
     const challengeResponse=await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({secret:process.env.TURNSTILE_SECRET_KEY,response:data.challenge}),signal:AbortSignal.timeout(10000)});

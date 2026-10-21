@@ -4,6 +4,7 @@ import QRCode from 'qrcode';
 import {fail} from './door-auth.mjs';
 export const hashToken=token=>createHash('sha256').update(token).digest('hex');
 export function stripeKeyMode(key){const mode=/^(?:sk|rk)_(test|live)_[A-Za-z0-9]+$/.exec(key||'')?.[1];return mode||null;}
+export const validWebhookSecret=value=>typeof value==='string'&&/^whsec_[A-Za-z0-9]{20,}$/.test(value);
 export function ticketToken(id,key,purpose='admission'){
   if(!/^[a-f0-9]{64}$/i.test(key||''))throw fail('Ticket delivery is awaiting activation.',503);
   return createHmac('sha256',Buffer.from(key,'hex')).update(`ringside:${purpose}:v1:${id}`).digest('base64url');

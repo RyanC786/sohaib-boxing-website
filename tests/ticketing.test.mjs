@@ -3,7 +3,11 @@ import assert from 'node:assert/strict';
 import {createHmac,randomBytes} from 'node:crypto';
 import {PNG} from 'pngjs';
 import jsQR from 'jsqr';
-import {ticketToken,hashToken,verifyStripe,receipt,ticketConfiguration,stripeKeyMode} from '../server/ticketing.mjs';
+import {ticketToken,hashToken,verifyStripe,receipt,ticketConfiguration,stripeKeyMode,validWebhookSecret} from '../server/ticketing.mjs';
+test('payment activation rejects signing-secret labels, placeholders and truncated values',()=>{
+  for(const value of [undefined,'','STRIPE_WEBHOOK_SECRET','sandbox values','whsec_','whsec_...',' whsec_'+'a'.repeat(40)])assert.equal(validWebhookSecret(value),false);
+  assert.equal(validWebhookSecret('whsec_'+'a'.repeat(40)),true);
+});
 test('webhook payment mode recognises standard and restricted keys and rejects invalid keys',()=>{
   for(const prefix of ['sk','rk'])for(const mode of ['test','live'])assert.equal(stripeKeyMode(`${prefix}_${mode}_fixture123`),mode);
   for(const key of ['',undefined,'pk_test_fixture','something','sk_test_'])assert.equal(stripeKeyMode(key),null);

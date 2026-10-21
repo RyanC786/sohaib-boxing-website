@@ -1,10 +1,10 @@
-import {ticketConfiguration,database,rpc,verifyStripe,issuedTickets,stripeKeyMode} from '../../server/ticketing.mjs';
+import {ticketConfiguration,database,rpc,verifyStripe,issuedTickets,stripeKeyMode,validWebhookSecret} from '../../server/ticketing.mjs';
 import {fail,errorResponse} from '../../server/door-auth.mjs';
 import {json} from '../../server/auth.mjs';
 export default async req=>{
   try{
     if(req.method!=='POST')return json({error:'Method not allowed.'},405);
-    const config=ticketConfiguration();if(!config?.webhookSecret)throw fail('Ticket payments are awaiting activation.',503);
+    const config=ticketConfiguration();if(!config||!validWebhookSecret(config.webhookSecret))throw fail('Ticket payments are awaiting activation.',503);
     const raw=Buffer.from(await req.arrayBuffer());if(raw.length>262144)throw fail('Notification too large.',413);
     const event=verifyStripe(raw,req.headers.get('stripe-signature'),config.webhookSecret),object=event.data?.object;
     if(!event.id||!object?.id)throw fail('Invalid payment notification.');
