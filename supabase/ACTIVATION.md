@@ -24,6 +24,8 @@ Code deployment is separate from account, database, sender and payment activatio
 
 ## Inventory and payments (later)
 
+Sandbox connection prepared 21 October: Sohaib Boxing / Fight Hub account `acct_1USxhh6eqbP6UUXp`, Snapshot webhook destination `we_1USxuG6eqbP6UUXppIyN6S0j`, API version `2026-09-30.endive`, four handler event types. The user added the Supabase server key and Netlify redeployed successfully. Stripe keys still need protected server entry; no payment acceptance has been completed. A test Stripe key makes catalog/checkout owner-only with MFA, protecting public visitors from accidental sandbox bookings; a live key allows the normal public flow only after all other activation gates are satisfied.
+
 Use the organiser's existing Stripe account, starting with its test credentials. Configure `PUBLIC_SITE_URL` exactly. Webhook endpoint: `/api/stripe/webhook`. Subscribe to checkout completion, checkout expiry and charge refund events. Card payments are the only enabled Checkout payment method. The webhook checks signed raw bytes, timestamp, test/live mode, session ID, payment ID, currency and the reserved total. Only a confirmed paid reservation can issue admissions. Test partial/full refunds and out-of-order notifications too.
 
 Configure event IDs, explicit admission windows and confirmed category capacities in the private database. Categories start disabled. Reconcile them with the CMS's display names, dates and prices before launch. Changing a public event into a different fight must create a new event ID. Existing reservations preserve purchased prices and event snapshots. Automatic CMS-to-inventory synchronisation and event-change mail are not enabled yet; completing that mapping is required before live ticket sales.

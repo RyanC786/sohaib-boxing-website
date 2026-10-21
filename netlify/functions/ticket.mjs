@@ -1,12 +1,14 @@
 import {ticketConfiguration,deliveryConfiguration,database,rpc,receipt,ticketToken,hashToken} from '../../server/ticketing.mjs';
 import {body,fail,errorResponse} from '../../server/door-auth.mjs';
 import {json} from '../../server/auth.mjs';
+import {checkoutAccess} from '../../server/checkout-access.mjs';
 export default async req=>{
   try{
     const path=new URL(req.url).pathname;
     const config=['/api/ticket/receipt','/api/ticket/request'].includes(path)?deliveryConfiguration():ticketConfiguration();if(!config)throw fail('Online ticket delivery is awaiting activation. Please use the organiser’s current booking page.',503);
+    const access=['/api/ticket/catalog','/api/ticket/checkout'].includes(path)?await checkoutAccess(req,config):null;
     const db=database(config);
-    if(path==='/api/ticket/catalog'&&req.method==='GET')return json({categories:await rpc(db,'ringside_ticket_catalog',{}),challengeKey:process.env.TURNSTILE_SITE_KEY||''});
+    if(path==='/api/ticket/catalog'&&req.method==='GET')return json({categories:await rpc(db,'ringside_ticket_catalog',{}),challengeKey:process.env.TURNSTILE_SITE_KEY||'',testMode:access.testMode},200,access.headers);
     if(req.method!=='POST')return json({error:'Method not allowed.'},405);
     const data=await body(req);
     if(path==='/api/ticket/receipt')return json(await receipt(db,config,data.token));
@@ -32,7 +34,7 @@ export default async req=>{
     const checkout=await result.json();
     await rpc(db,'ringside_attach_checkout',{p_order:order.id,p_session:checkout.id,p_receipt_hash:hashToken(receiptToken)});
     if(!checkout.url?.startsWith('https://checkout.stripe.com/'))throw fail('Checkout is unavailable.',503);
-    return json({url:checkout.url});
+    return json({url:checkout.url},200,access.headers);
   }catch(error){return errorResponse(error);}
 };
 export const config={path:['/api/ticket/receipt','/api/ticket/request','/api/ticket/catalog','/api/ticket/checkout'],rateLimit:{windowLimit:30,windowSize:60,aggregateBy:['ip','domain']}};
