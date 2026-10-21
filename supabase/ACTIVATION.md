@@ -22,6 +22,8 @@ Code deployment is separate from account, database, sender and payment activatio
 
 `DOOR_SESSION_KEY` is a random 32-byte key encoded as 64 hex characters. Keep it in server environment only. Rotating it signs out staff. `RINGSIDE_TICKET_KEY` is a different key: **do not rotate it casually**, since existing printed QR codes and download links depend on it. A planned rotation needs versioned keys and ticket reissue; key versioning is not implemented yet. No browser receives either key or the Supabase secret key.
 
+For first-time ticket activation only, `/admin/setup-key/` lets the human operator generate a new key locally and copy it into Netlify's secret Production value. It does not retrieve existing server keys or store/transmit the generated key. Preserve the existing key when one has already been configured. A PowerShell alternative is `scripts/New-TicketSigningKey.ps1`.
+
 ## Inventory and payments (later)
 
 Sandbox connection prepared 21 October: Sohaib Boxing / Fight Hub account `acct_1USxhh6eqbP6UUXp`, Snapshot webhook destination `we_1USxuG6eqbP6UUXppIyN6S0j`, API version `2026-09-30.endive`, four handler event types. The user added the Supabase and Stripe secrets in Netlify. After correcting a webhook placeholder, deployment `b3fc2b8` published successfully. This establishes deployment success, not provider authentication or payment acceptance. Ticket signing key, ticket sender/API settings, Turnstile and signed-in owner acceptance remain to activate. A test Stripe key makes catalog/checkout owner-only with MFA; a live key allows the normal public flow only after all other activation gates are satisfied. The public sender address is excluded from secret-value scanning; privileged keys remain scanned.
