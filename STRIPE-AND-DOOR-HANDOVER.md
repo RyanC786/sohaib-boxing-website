@@ -19,7 +19,7 @@ Temporary email domain: siteboss.co
 
 ### Activation status - 22 October 2026
 
-The owner confirmed password recovery, MFA, admin access and phone installation. Hosted event/staff migrations and 17 private RLS tables were verified. Netlify published checkout fix 2df9aa7. A real sandbox purchase issued a printable QR ticket and delivered its email; the ticket office shows one paid booking and one sent email. The owner tested phone admission and a repeat scan returned Already admitted. Multi-attendee bookings, provider refunds, notifications, separate scanner invitations and simultaneous two-phone admission remain acceptance checks. Live Stripe payments are not enabled.
+The owner confirmed password recovery, MFA, admin access and phone installation. Hosted private database controls and event/staff migrations were verified. Sandbox checkout, separate tickets for multiple attendees, email delivery, printable/downloadable tickets, phone admission, duplicate rejection and saved-QR rejection after refund passed. A separately invited scanner verified email, signed in, saw only the assigned test event and could not enter the dashboard. The remembered-device update is published; phone app-switch session retention was user-confirmed. All 38 automated tests and build validation passed. Hosted paused-staff, declined/expired checkout, simultaneous-device admission and full event-notice rehearsal remain launch checks. Live Stripe payments are not enabled.
 
 ### Workflow
 
@@ -174,9 +174,9 @@ Test date: ______________  Reviewer: ____________________
 
 Obtain access to their account with their permission. Repeat the sandbox setup in their account first. Recreate the webhook there and use that account's own keys/secrets. For live launch, switch API key and live endpoint secret together, redeploy and verify. Never copy your sandbox webhook secret into their account. Do not delete their previous website's webhook until outstanding payments/refunds and ownership of each order are reconciled.
 
-### Vercel migration before domain handover
+### Stay on Netlify for domain handover
 
-Vercel import of dist alone is insufficient. Convert API handlers, media storage, scheduled email worker, rate limits and security headers. Keep the same Supabase project, event IDs and ticket signing key. Migrate the CMS adapter/state and uploaded media with verification. Review VERCEL-HANDOVER.md before changing DNS. This conversion is not yet complete.
+The user chose Netlify Personal and restored deployment credits on 22 October 2026. No Vercel conversion is required for this launch. Connect the final domain and HTTPS, preserve current email DNS, update the verified sender, SMTP/template links, public URL, Supabase auth redirects, Turnstile hostnames and Stripe webhook. Preserve the same Supabase project, event IDs and ticket signing key. Reconcile tickets/orders issued by the old website before replacing it. Monitor team-wide hosting credits and agree database backups and support ownership.
 
 ### Final domain and owner
 
