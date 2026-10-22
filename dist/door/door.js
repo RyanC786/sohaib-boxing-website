@@ -1,6 +1,6 @@
 import {escapeHTML as e} from '/model.mjs';
 const app=document.querySelector('#app'),notice=document.querySelector('#notice');
-let session,events=[],stream,frame,detecting=false,busy=false,result,selected='',enrollment,installPrompt,noticeTimer,expiryTimer,recovered=false,view=0;
+let session,events=[],stream,frame,detecting=false,busy=false,result,selected='',enrollment,installPrompt,noticeTimer,expiryTimer,recovered=false,view=0,resumePending=false;
 const stamp=value=>new Date(value).toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short',timeZone:'Europe/London'});
 const field=(label,name,type='text',attrs='')=>`<label class="field">${label}<input name="${name}" type="${type}" required ${attrs}></label>`;
 function tell(text,error=false){notice.textContent=text;notice.className=error?'error':'';notice.style.display='block';clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>notice.style.display='none',9000);}
@@ -10,10 +10,10 @@ async function api(path,options={}){
   const data=await response.json();if(!response.ok){if(response.status===401){stopCamera();result=null;}throw Error(data.error||'The request could not be completed.');}return data;
 }
 const auth=data=>api('auth',{method:'POST',body:JSON.stringify(data)});
-async function run(work){if(busy)return;busy=true;document.querySelectorAll('button,input,select').forEach(b=>b.disabled=true);try{await work();}catch(error){tell(error.message,true);}finally{busy=false;document.querySelectorAll('button,input,select').forEach(b=>b.disabled=false);const admit=document.querySelector('#admit');if(admit)admit.disabled=!document.querySelector('#id-checked')?.checked||!navigator.onLine;}}
+async function run(work){if(busy)return;busy=true;document.querySelectorAll('button,input,select').forEach(b=>b.disabled=true);try{await work();}catch(error){tell(error.message,true);}finally{busy=false;document.querySelectorAll('button,input,select').forEach(b=>b.disabled=false);const admit=document.querySelector('#admit');if(admit)admit.disabled=!document.querySelector('#id-checked')?.checked||!navigator.onLine;if(resumePending&&!document.hidden){resumePending=false;void resumeDesk();}}}
 function installCard(){return `<details class="rule"><summary>Install on your phone</summary><p class="help">iPhone: open this page in Safari, tap Share, then Add to Home Screen. Android: use your browser’s Install app or Add to Home screen option.</p>${installPrompt?'<button id="install" class="quiet wide">Install Ringside Door</button>':''}<p class="help">Installation does not grant access. Every staff member needs an invited account, an authenticator and an event assignment.</p></details>`;}
 function login(recovery=false){
-  stopCamera();app.innerHTML=`<div class="eyebrow">Fight night · Staff entrance</div><h1>The right people.<br><span class="gold">Through the ropes.</span></h1><div class="login-layout"><div class="intro"><p>Scan the ticket. Check their ID. Welcome them to fight night.</p><span class="badge">INVITED STAFF ONLY</span>${installCard()}</div><section class="panel"><h2>${recovery?'Recover your account':'Staff sign-in'}</h2><form id="${recovery?'recover':'login'}">${field('Staff email','email','email','autocomplete="username" maxlength="254"')}${recovery?'':field('Password','password','password','autocomplete="current-password" maxlength="128"')}<button class="wide">${recovery?'Send recovery email':'Sign in securely'}</button></form><button class="text-button" id="${recovery?'back-login':'forgot'}">${recovery?'Back to sign-in':'Forgot your password?'}</button>${!recovery?`<details><summary>Activate a staff invitation</summary><form id="invite-code">${field('Invited email','email','email','autocomplete="username"')}${field('Invitation code','code','text','inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,10}"')}<button class="quiet wide">Activate my invitation</button></form></details>`:''}${recovery?`<details open><summary>I have a recovery code</summary><form id="recovery-code">${field('Staff email','email','email','autocomplete="username"')}${field('Email recovery code','code','text','inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,10}"')}<button class="quiet wide">Verify recovery code</button></form></details>`:''}</section></div>`;
+  stopCamera();app.innerHTML=`<div class="eyebrow">Fight night · Staff entrance</div><h1>The right people.<br><span class="gold">Through the ropes.</span></h1><div class="login-layout"><div class="intro"><p>Scan the ticket. Check their ID. Welcome them to fight night.</p><span class="badge">INVITED STAFF ONLY</span>${installCard()}</div><section class="panel"><h2>${recovery?'Recover your account':'Staff sign-in'}</h2><form id="${recovery?'recover':'login'}">${field('Staff email','email','email','autocomplete="username" maxlength="254"')}${recovery?'':field('Password','password','password','autocomplete="current-password" maxlength="128"')+'<label class="check-id"><input name="remember" type="checkbox">Keep me logged in on this device</label><p class="help">Stay signed in for up to 12 hours, including after calls or switching apps. Use only on a phone you control. Sign out when your shift ends.</p>'}<button class="wide">${recovery?'Send recovery email':'Sign in securely'}</button></form><button class="text-button" id="${recovery?'back-login':'forgot'}">${recovery?'Back to sign-in':'Forgot your password?'}</button>${!recovery?`<details><summary>Activate a staff invitation</summary><form id="invite-code">${field('Invited email','email','email','autocomplete="username"')}${field('Invitation code','code','text','inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,10}"')}<button class="quiet wide">Activate my invitation</button></form></details>`:''}${recovery?`<details open><summary>I have a recovery code</summary><form id="recovery-code">${field('Staff email','email','email','autocomplete="username"')}${field('Email recovery code','code','text','inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,10}"')}<button class="quiet wide">Verify recovery code</button></form></details>`:''}</section></div>`;
 }
 function mfa(){
   stopCamera();const factors=session.factors||[];
@@ -81,7 +81,7 @@ async function camera(){
 }
 function connection(){const el=document.querySelector('#connection');el.textContent=navigator.onLine?'● Online checks':'● Offline · admission paused';el.className='connection'+(navigator.onLine?'':' offline');if(!navigator.onLine){view++;stopCamera();clearTimeout(expiryTimer);result=null;const target=document.querySelector('#result');if(target)target.replaceChildren();}const button=document.querySelector('#admit');if(button)button.disabled=!navigator.onLine||!document.querySelector('#id-checked')?.checked;}
 app.addEventListener('submit',event=>{event.preventDefault();const data=Object.fromEntries(new FormData(event.target));run(async()=>{
-  if(event.target.id==='login'){await auth({action:'login',...data});await refresh();}
+  if(event.target.id==='login'){await auth({action:'login',...data,remember:data.remember==='on'});await refresh();}
   if(event.target.id==='verify'){await auth({action:'verify',...data});enrollment=null;await refresh();}
   if(event.target.id==='recover'){const result=await auth({action:'recover',...data});tell(result.message);}
   if(event.target.id==='recovery-code'||event.target.id==='invite-code'){await auth({action:event.target.id==='invite-code'?'invite-verify':'recovery-verify',...data});recovered=true;await refresh();}
@@ -99,8 +99,15 @@ app.addEventListener('click',event=>{const button=event.target.closest('button')
 });});
 app.addEventListener('change',event=>{if(event.target.id==='event'){selected=event.target.value;clearTimeout(expiryTimer);desk();}if(event.target.id==='id-checked')document.querySelector('#admit').disabled=!event.target.checked||!navigator.onLine;});
 window.addEventListener('online',connection);window.addEventListener('offline',connection);
-document.addEventListener('visibilitychange',()=>{if(document.hidden){view++;stopCamera();result=null;clearTimeout(expiryTimer);const target=document.querySelector('#result');if(target)target.replaceChildren();}else{const button=document.querySelector('#camera');if(button)button.hidden=false;}});
+async function resumeDesk(){
+  if(!session?.authenticated||!session.mfaVerified)return;
+  if(busy){resumePending=true;return;}
+  if(!navigator.onLine){connection();return;}
+  await run(()=>refresh());
+}
+document.addEventListener('visibilitychange',()=>{if(document.hidden){view++;stopCamera();result=null;clearTimeout(expiryTimer);const target=document.querySelector('#result');if(target)target.replaceChildren();}else{const button=document.querySelector('#camera');if(button)button.hidden=false;void resumeDesk();}});
 window.addEventListener('pagehide',stopCamera);
+window.addEventListener('pageshow',event=>{if(event.persisted)void resumeDesk();});
 window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();installPrompt=event;});
 async function start(){
   const link=new URLSearchParams(location.hash.slice(1));

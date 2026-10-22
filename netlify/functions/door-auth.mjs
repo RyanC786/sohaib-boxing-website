@@ -24,7 +24,7 @@ export default async req=>{
       const supabase=client(config),result=await supabase.auth.signInWithPassword({email:data.email,password:data.password});
       if(result.error||!result.data.session)throw fail('Sign-in failed. Check your email and password.',401);
       try{await staffAccess(supabase,false,['owner','editor','scanner']);}catch(error){await supabase.auth.signOut({scope:'local'});throw error;}
-      return response({ok:true},result.data.session,config);
+      return response({ok:true},{...result.data.session,remember:data.remember===true},config);
     }
     if(data.action==='recover'){
       if(typeof data.email!=='string'||data.email.length>254)throw fail('Enter your email address.');
@@ -70,7 +70,7 @@ export default async req=>{
       if(!factors.data.all.some(f=>f.factor_type==='totp'&&f.id===data.factorId))throw fail('Authenticator not found. Restart setup on this page.',403);
       const {error}=await s.supabase.auth.mfa.challengeAndVerify({factorId:data.factorId,code:data.code});
       if(error)throw fail('That code is incorrect or has expired. Try the next code.',401);
-      const current=await s.supabase.auth.getSession();return response({ok:true},current.data.session,config);
+      const current=await s.supabase.auth.getSession();return response({ok:true},{...current.data.session,until:s.session.until,remember:s.session.remember},config);
     }
     if(data.action==='password'){
       await staffAccess(s.supabase,true,['owner','editor','scanner']);

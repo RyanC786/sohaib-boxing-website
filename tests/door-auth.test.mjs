@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {randomBytes} from 'node:crypto';
-import {seal,unseal,configuration,doorCookie,body} from '../server/door-auth.mjs';
+import {seal,unseal,configuration,doorCookie,sessionCookie,body} from '../server/door-auth.mjs';
 import door from '../netlify/functions/door.mjs';
 import auth from '../netlify/functions/door-auth.mjs';
 import {cmsIdentity} from '../server/cms-auth.mjs';
@@ -38,13 +38,42 @@ test('staff session is encrypted, authenticated, expires and fails closed after 
   const key=randomBytes(32).toString('hex'),tokens={access_token:'private-access-token',refresh_token:'private-refresh-token'};
   const cookie=seal(tokens,key,1000);
   assert.equal(cookie.includes(tokens.access_token),false);
-  assert.deepEqual(unseal(cookie,key,1001),{...tokens,until:1000+12*3600000});
+  assert.deepEqual(unseal(cookie,key,1001),{...tokens,until:1000+12*3600000,remember:false});
   const bytes=Buffer.from(cookie,'base64url');bytes[bytes.length-1]^=1;
   assert.equal(unseal(bytes.toString('base64url'),key,1001),null);
   assert.equal(unseal(cookie,randomBytes(32).toString('hex'),1001),null);
   assert.equal(unseal(cookie,key,1000+12*3600000),null);
   assert.match(doorCookie(cookie),/HttpOnly; Secure; SameSite=Strict/);
   assert.match(doorCookie(cookie),/Path=\/api\//);
+});
+
+test('remembered device survives token renewal without extending the shift or bypassing staff checks',async()=>{
+  const saved={...process.env},originalFetch=globalThis.fetch,key='f'.repeat(64),now=Date.now(),until=now+3600000;
+  Object.assign(process.env,{SUPABASE_URL:'https://project.example.test',SUPABASE_PUBLISHABLE_KEY:'test-public',DOOR_SESSION_KEY:key});
+  const jwt=exp=>[Buffer.from('{"alg":"HS256"}').toString('base64url'),Buffer.from(JSON.stringify({sub:'staff',exp,aal:'aal2'})).toString('base64url'),'c3ludGhldGlj'].join('.');
+  const fresh=jwt(Math.floor(now/1000)+3600),user={id:'staff',aud:'authenticated',email:'staff@example.test',email_confirmed_at:'2026-10-22',factors:[]};
+  let refreshes=0,active=true;
+  const reply=data=>new Response(JSON.stringify(data),{headers:{'Content-Type':'application/json'}});
+  globalThis.fetch=async(url)=>{
+    const path=new URL(url).pathname;
+    if(path==='/auth/v1/token'){refreshes++;return reply({access_token:fresh,refresh_token:'rotated-refresh',expires_in:3600,token_type:'bearer',user});}
+    if(path==='/auth/v1/user')return reply(user);
+    if(path==='/rest/v1/rpc/ringside_access')return reply(active?{role:'scanner',mfaVerified:true}:null);
+    throw Error('Unexpected provider request: '+path);
+  };
+  try{
+    const value=seal({access_token:jwt(Math.floor(now/1000)-60),refresh_token:'old-refresh',until,remember:true},key,now);
+    const result=await auth(new Request('https://boxing.test/api/door/auth',{headers:{cookie:'ringside_door='+value}}));
+    assert.equal(result.status,200);assert.equal((await result.json()).mfaVerified,true);assert.equal(refreshes,1);
+    const header=result.headers.get('Set-Cookie'),renewed=unseal(header.match(/^ringside_door=([^;]+)/)[1],key);
+    assert.equal(renewed.refresh_token,'rotated-refresh');assert.equal(renewed.remember,true);assert.equal(renewed.until,until);
+    assert.match(header,/Max-Age=\d+/);assert.ok(Number(header.match(/Max-Age=(\d+)/)[1])<=3600);
+    const transient=sessionCookie({...renewed,remember:false},{secret:key},now);
+    assert.doesNotMatch(transient,/Max-Age/);assert.match(transient,/HttpOnly; Secure; SameSite=Strict/);
+    assert.equal(unseal(renewed&&header.match(/^ringside_door=([^;]+)/)[1],key,until),null);
+    active=false;
+    assert.equal((await auth(new Request('https://boxing.test/api/door/auth',{headers:{cookie:header.split(';')[0]}}))).status,403);
+  }finally{globalThis.fetch=originalFetch;process.env=saved;}
 });
 test('scanner cannot activate with missing or malformed configuration',async()=>{
   assert.equal(configuration({}),null);
@@ -111,10 +140,11 @@ test('real Supabase SDK verifies pending TOTP, rejects foreign factors and clean
     if(path==='/auth/v1/factors'&&options.method==='POST')return reply({id:'new-factor',type:'totp',totp:{qr_code:'synthetic-qr',secret:'synthetic-secret'}});
     throw Error('Unexpected synthetic provider request: '+path);
   };
-  const request=data=>new Request('https://boxing.test/api/door/auth',{method:'POST',headers:{origin:'https://boxing.test','Content-Type':'application/json',cookie:'ringside_door='+seal({access_token:jwt('aal1'),refresh_token:'synthetic-refresh'},key)},body:JSON.stringify(data)});
+  const request=data=>new Request('https://boxing.test/api/door/auth',{method:'POST',headers:{origin:'https://boxing.test','Content-Type':'application/json',cookie:'ringside_door='+seal({access_token:jwt('aal1'),refresh_token:'synthetic-refresh',remember:true,until:Date.now()+1800000},key)},body:JSON.stringify(data)});
   try{
     const verified=await auth(request({action:'verify',factorId:'pending-factor',code:'000000'}));
     assert.equal(verified.status,200);assert.equal(challengeCount,1);assert.equal(verified.headers.has('Set-Cookie'),true);
+    const kept=unseal(verified.headers.get('Set-Cookie').match(/^ringside_door=([^;]+)/)[1],key);assert.equal(kept.remember,true);assert.ok(kept.until<=Date.now()+1800000);assert.match(verified.headers.get('Set-Cookie'),/Max-Age=/);
     const foreign=await auth(request({action:'verify',factorId:'another-users-factor',code:'000000'}));
     assert.equal(foreign.status,403);assert.equal(challengeCount,1);assert.equal(foreign.headers.has('Set-Cookie'),false);
     factors.push({id:'phone-factor',factor_type:'phone',status:'unverified'});

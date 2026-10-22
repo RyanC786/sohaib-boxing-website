@@ -1,4 +1,4 @@
-import {configuration,doorSession,staffAccess,doorCookie,seal,fail} from './door-auth.mjs';
+import {configuration,doorSession,staffAccess,sessionCookie,fail} from './door-auth.mjs';
 import {stripeKeyMode} from './ticketing.mjs';
 
 // A sandbox on the public hostname must never accept an unsuspecting visitor.
@@ -10,5 +10,5 @@ export async function checkoutAccess(req,ticketConfig){
   const config=configuration();if(!config)throw fail('Sandbox bookings need the protected owner sign-in.',503);
   const session=await doorSession(req,config);
   await staffAccess(session.supabase,true,['owner']);
-  return {testMode:true,headers:{'Set-Cookie':doorCookie(seal(session.session,config.secret))}};
+  return {testMode:true,headers:{'Set-Cookie':sessionCookie(session.session,config)}};
 }
