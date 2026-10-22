@@ -33,3 +33,5 @@ Staff test account: invitation sent to fizacaan@gmail.com after explicit access 
 ## Remembered staff device update
 
 Added an explicit opt-in at password sign-in. Checked devices retain the encrypted HttpOnly cookie across browser/app restarts for the remainder of a fixed 12-hour session; unchecked sign-ins use a browser-session cookie. MFA is still required for a new login. Token renewal and MFA verification preserve the preference and original expiry, including admin and sandbox-checkout responses. Returning from the background rechecks authentication/access and restores the desk; stale admission results are discarded, and the user reopens the camera. Sign-out clears the cookie; staff/MFA/event checks remain server-side. Automated suite: 38 passed; build passed. Real-phone call/app-switch and reopen acceptance remains pending.
+
+Deployment of b168a6c was skipped by Netlify: account deployment credits exceeded. The live site remains on 2cf64fa; the remembered-login feature is committed and tested but is not live. Resume deployment when credits are restored, or complete the separately planned Vercel migration before phone acceptance.
