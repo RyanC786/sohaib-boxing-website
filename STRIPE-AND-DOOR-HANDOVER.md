@@ -1,6 +1,6 @@
 # Boxing tickets, Stripe and door app handover
 
-Prepared 21 October 2026. Reverify activation status before use.
+Updated 22 October 2026. Reverify activation status before use.
 
 ## 01 / Start here: Boxing tickets & door app
 
@@ -17,9 +17,9 @@ Phone instructions: /door/install/
 Supabase project: eoyougxlheclxqkbmlud
 Temporary email domain: siteboss.co
 
-### Activation status - 21 October 2026
+### Activation status - 22 October 2026
 
-The owner has confirmed password recovery, authenticator and admin login work. Event and staff migrations were applied on Supabase and 17 private RLS tables verified. Netlify published commit 444ca61; the public installation page was checked. Protected owner import and staff controls still need a signed-in acceptance check. Sandbox payments, ticket emails, invitations and physical-phone acceptance remain activation steps. Do not treat passing local tests as proof of live delivery.
+The owner confirmed password recovery, MFA, admin access and phone installation. Hosted event/staff migrations and 17 private RLS tables were verified. Netlify published checkout fix 2df9aa7. A real sandbox purchase issued a printable QR ticket and delivered its email; the ticket office shows one paid booking and one sent email. The owner tested phone admission and a repeat scan returned Already admitted. Multi-attendee bookings, provider refunds, notifications, separate scanner invitations and simultaneous two-phone admission remain acceptance checks. Live Stripe payments are not enabled.
 
 ### Workflow
 

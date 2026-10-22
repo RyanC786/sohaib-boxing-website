@@ -1,6 +1,6 @@
 # Activate Ringside Door and QR tickets
 
-Code deployment is separate from account, database, sender and payment activation. Stripe is intentionally deferred by the organiser. Never enable sales just to preview the screens.
+Code deployment is separate from provider acceptance. The developer's Stripe sandbox is connected and owner-only; the organiser's live Stripe cutover remains pending. Never enable live sales just to preview the screens.
 
 ## Current handover
 
@@ -9,7 +9,7 @@ Code deployment is separate from account, database, sender and payment activatio
 - Later owner: `info@sohaibboxing.com`. Invite and verify the replacement, enrol MFA and test its access before removing Ryan's owner role.
 - `/door/` is a PWA installed through Safari Share → Add to Home Screen, or Chrome → Install / Add to Home screen. Installation is public; staff data requires individual login, MFA and protected event assignments.
 - Tickets arrive through an email link to a QR ticket. Buyers can print / save as PDF or show it on a phone. There is no postal delivery.
-- No real invitation, payment, email campaign or deletion was performed in developing these changes.
+- On 22 October the owner confirmed a sandbox payment, ticket email/PDF, phone installation, admission and duplicate rejection. No live payment or promotional campaign has been enabled.
 
 ## Database and staff activation
 
@@ -24,23 +24,23 @@ Code deployment is separate from account, database, sender and payment activatio
 
 For first-time ticket activation only, `/admin/setup-key/` lets the human operator generate a new key locally and copy it into Netlify's secret Production value. It does not retrieve existing server keys or store/transmit the generated key. Preserve the existing key when one has already been configured. A PowerShell alternative is `scripts/New-TicketSigningKey.ps1`.
 
-## Inventory and payments (later)
+## Inventory and payments
 
-Sandbox connection prepared 21 October: Sohaib Boxing / Fight Hub account `acct_1USxhh6eqbP6UUXp`, Snapshot webhook destination `we_1USxuG6eqbP6UUXppIyN6S0j`, API version `2026-09-30.endive`, four handler event types. The user added the Supabase and Stripe secrets in Netlify. After correcting a webhook placeholder, deployment `b3fc2b8` published successfully. This establishes deployment success, not provider authentication or payment acceptance. Ticket signing key, ticket sender/API settings, Turnstile and signed-in owner acceptance remain to activate. A test Stripe key makes catalog/checkout owner-only with MFA; a live key allows the normal public flow only after all other activation gates are satisfied. The public sender address is excluded from secret-value scanning; privileged keys remain scanned.
+Sandbox account: Sohaib Boxing / Fight Hub `acct_1USxhh6eqbP6UUXp`, Snapshot webhook `we_1USxuG6eqbP6UUXppIyN6S0j`, API version `2026-09-30.endive`. Protected keys, Resend sender and Turnstile were configured by the user. Commit `2df9aa7` removes the obsolete Checkout payment_method_types field rejected by this API version. Sandbox payment, email/PDF and sequential phone admission/duplicate rejection were confirmed on 22 October. Test event `db7f78e0-4748-47d1-89a1-cd054f5fe4b7` has a £1 category; it must be disabled before live cutover. Catalog/checkout with a test key requires an MFA owner. Keep privileged keys scanned and preserve the ticket signing key across host moves.
 
-Use the organiser's existing Stripe account, starting with its test credentials. Configure `PUBLIC_SITE_URL` exactly. Webhook endpoint: `/api/stripe/webhook`. Subscribe to checkout completion, checkout expiry and charge refund events. Card payments are the only enabled Checkout payment method. The webhook checks signed raw bytes, timestamp, test/live mode, session ID, payment ID, currency and the reserved total. Only a confirmed paid reservation can issue admissions. Test partial/full refunds and out-of-order notifications too.
+Use the organiser's existing Stripe account for handover, starting with its test credentials. Configure `PUBLIC_SITE_URL` exactly. Webhook endpoint: `/api/stripe/webhook`. Subscribe to checkout completion, asynchronous payment success, checkout expiry and charge refund events. Payment methods are managed in Stripe's Dashboard; verify enabled methods before live cutover. The webhook checks signed raw bytes, timestamp, test/live mode, session ID, payment ID, currency and the reserved total. Only a confirmed paid reservation can issue admissions. Test partial/full refunds and out-of-order notifications too.
 
-Configure event IDs, explicit admission windows and confirmed category capacities in the private database. Categories start disabled. Reconcile them with the CMS's display names, dates and prices before launch. Changing a public event into a different fight must create a new event ID. Existing reservations preserve purchased prices and event snapshots. Automatic CMS-to-inventory synchronisation and event-change mail are not enabled yet; completing that mapping is required before live ticket sales.
+Publish reviewed real event details, explicit admission windows and confirmed category capacities through the owner CMS before launch. Event publication synchronises inventory and queues relevant event notices atomically. Changing to a different fight creates a new event ID; earlier bookings preserve purchased prices and snapshots. The current £1 test fixture was created separately from the public homepage; real inventory has not yet been published.
 
 Configure Cloudflare Turnstile with the live hostname and `booking` action. Both client widget and server verification are required. A browser total is never accepted. Pending reservations keep capacity until Stripe confirms expiry/cancellation/refund; uncertain checkout creation needs reconciliation rather than blind timeout release. Set up alerts for stuck reservations, payment failures and manual-review refunds before launch.
 
 ## Transactional email
 
-Resend support is implemented but no account, domain or sender has been provisioned. Verify a sender on an organiser-controlled domain (for example `tickets@sohaibboxing.com`), SPF/DKIM and deliverability before configuring `RESEND_API_KEY` and `TICKET_FROM_EMAIL`. Disable click tracking on private ticket links. Domain DNS changes and provider billing must be handled with the domain/account owner.
+Resend ticket delivery is configured using the user's verified siteboss.co sender, and the first test email arrived. Replace it with a verified organiser-controlled sender for handover (for example `tickets@sohaibboxing.com`). Verify SPF/DKIM and deliverability, disable private-link click tracking, and arrange DNS/billing with the domain owner.
 
-The `ticket-email` Netlify scheduled function processes at most five ticket jobs per minute once `TICKET_EMAIL_ENABLED=true` and all required keys exist. Netlify scheduled functions cannot be invoked through a public URL. An uncertain provider response retries with the same idempotency key. Jobs stop for review after eight attempts or 23 hours; check the provider before requeuing an old ambiguous delivery. Monitor failures and configure provider bounce/complaint handling before launch. The queue does not send promotional campaigns or event-change templates.
+The `ticket-email` Netlify scheduled function processes at most five jobs per minute once `TICKET_EMAIL_ENABLED=true` and keys exist. Netlify scheduled functions cannot be invoked through a public URL. Uncertain responses retry with a stable idempotency key; jobs stop for review after eight attempts or 23 hours. Monitor failures and configure bounce/complaint handling before launch. The queue supports ticket and event notices, including cancellation and fighter withdrawal; it does not send promotional campaigns.
 
-Keep `TICKETING_ENABLED=false` and `TICKET_EMAIL_ENABLED=false` until an end-to-end test has passed. The checkout endpoint also requires configured Stripe, verified email sender settings and Turnstile before it can create a payment session. No live card data enters this website.
+`TICKETING_ENABLED` and `TICKET_EMAIL_ENABLED` were enabled for the authorised owner-only sandbox test after verifying the database had zero orders and zero queued emails. The checkout also requires Stripe, email sender and Turnstile configuration. Keep the test-key owner gate until the remaining acceptance checks and organiser live cutover are complete. No live card data enters this website.
 
 ## Required tests on the hosted services
 
