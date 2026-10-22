@@ -20,6 +20,8 @@ Notification delivery check: two frozen simulated payloads were queued for the a
 
 ## Remaining
 
+Staff test account: invitation sent to fizacaan@gmail.com after explicit access approval; scanner role assigned only to the test event. Activation/MFA/permissions acceptance is pending. The recipient reported the original invitation in spam with no usable link. Supabase source contained a valid ConfirmationURL anchor; root cause of the recipient rendering is unconfirmed. On 22 October the invitation template was replaced with `supabase/templates/invite-user.html` (button, visible URL and OTP fallback), and one replacement invitation was sent. SPF/DKIM are verified for temporary siteboss.co; inbox placement and client rendering require recipient confirmation. Do not claim template improvement guarantees inbox delivery. Replace temporary sender/domain and template URL at final handover.
+
 - Confirm inbox receipt/wording for both simulated notices; actual hosted CMS publication acceptance remains separate.
 - Separate invited scanner onboarding, event isolation, account suspension and editor denial on hosted services.
 - Declined and expired checkout; multi-device simultaneous admission and offline/background recovery.
