@@ -1,4 +1,5 @@
 import {escapeHTML as e} from '/model.mjs';
+import {ticketImage} from '/ticket/download.mjs';
 const app=document.querySelector('#tickets');
 let token=new URLSearchParams(location.hash.slice(1)).get('receipt');
 history.replaceState(null,'',location.pathname);
@@ -14,6 +15,18 @@ async function load(){
   if(order.eventDetails){const ev=order.eventDetails,help=document.createElement('section');help.className='panel booking-help';help.innerHTML=`<h2>${order.eventStatus==='cancelled'?'EVENT CANCELLED':'Your booking information'}</h2>${ev.cancellationReason?`<p>${e(ev.cancellationReason)}</p>`:''}<p>${e(ev.customerMessage||ev.emailWelcome||'')}</p>${ev.fighterStatus==='withdrawn'&&order.eventStatus==='scheduled'?`<h3>Fighter withdrawal · event going ahead</h3><p>${e(ev.fighterNotice)}</p><p>The boxing event is still going ahead as scheduled.</p><p>${e(ev.fighterChangePolicy)}</p>`:''}<h3>Refunds & cancellations</h3><p>${e(ev.refundPolicy)}</p><h3>Transfers</h3><p>${e(ev.transferPolicy)}</p><p>${e(ev.contactEmail||'')} ${e(ev.contactPhone||'')}</p>${order.request?`<p>Your ${e(order.request.kind)} request is ${e(order.request.status.replaceAll('_',' '))}. Contact the organiser to change your request.</p>`:`<form id="booking-request"><h3>Contact the organiser about this booking</h3><label class="field">I would like to request<select name="kind"><option value="refund">A refund</option><option value="transfer">A transfer to another event</option></select></label><label class="field">Message<textarea name="message" maxlength="2000" rows="4" placeholder="For a transfer, tell us which event you would prefer."></textarea></label><p>A request does not confirm a refund or replacement ticket. The organiser will contact the booking email to arrange the next step.</p><button>Send request</button><p id="request-message" role="status"></p></form>`}`;app.append(help);
     const form=help.querySelector('form');if(form)form.onsubmit=async event=>{event.preventDefault();const button=form.querySelector('button');button.disabled=true;try{const response=await fetch('/api/ticket/request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,...Object.fromEntries(new FormData(form))}),signal:AbortSignal.timeout(18000)}),data=await response.json();if(!response.ok)throw Error(data.error||'Request could not be recorded.');form.replaceChildren(Object.assign(document.createElement('p'),{textContent:data.message}));}catch(error){document.querySelector('#request-message').textContent=error.message;button.disabled=false;}};
   }
+  document.querySelector('.intro').insertAdjacentHTML('afterend','<section class="panel ticket-backup"><h2>Save your ticket before you travel</h2><p>Reopen this email link whenever your ticket is valid. For a backup, use <strong>Download ticket image</strong> below each QR, or <strong>Print / save as PDF</strong>. You can also screenshot the complete ticket, including the attendee name and QR.</p><p>Keep the saved file on your phone. If a download opens in a new view, use Share / Save Image or Save to Files. Saved copies are checked online at the door; refunds and previous admission invalidate them. Bring matching ID.</p></section>');
+  app.querySelectorAll('.ticket').forEach((card,index)=>{
+    const ticket=order.tickets[index];if(ticket.status!=='valid')return;
+    const button=document.createElement('button');button.className='download-ticket';button.textContent='Download ticket image';
+    const status=document.createElement('p');status.setAttribute('role','status');status.className='download-status';
+    card.querySelector('.qr-wrap').append(button,status);
+    button.onclick=async()=>{button.disabled=true;status.textContent='Preparing your ticket image…';try{
+      const blob=await ticketImage(order,ticket),url=URL.createObjectURL(blob),link=document.createElement('a');
+      link.href=url;link.download='sohaib-ticket-'+ticket.id+'.png';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+      status.textContent='Check your downloads. On your phone, use Share / Save Image or Save to Files if prompted.';
+    }catch{status.textContent='Image download could not start. Use Print / save as PDF, or screenshot the complete ticket.';}finally{button.disabled=false;}};
+  });
   document.querySelector('#print').onclick=()=>window.print();document.querySelector('#reload').onclick=()=>load().catch(showError);
 }
 function showError(error){app.innerHTML=`<h1>Let’s check your tickets.</h1><section class="panel"><p class="message">${e(error.message||'Connection unavailable. Try again.')}</p><p>If you have just paid, payment confirmation may still be arriving. Keep this page open and try again shortly.</p><button id="retry">Check again</button></section>`;document.querySelector('#retry').onclick=()=>load().catch(showError);}

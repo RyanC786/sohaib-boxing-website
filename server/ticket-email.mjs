@@ -15,6 +15,7 @@ export function ticketMessage(job,config){
     'Event: '+job.title,when?'When: '+when:'',event.venue?'Where: '+event.venue:'',event.promoter?'Promoted by: '+event.promoter:'',
     names?'Attendees: '+names:'',job.category?'Ticket type: '+job.category:'',Number.isInteger(job.totalPence)?'Booking total: £'+(job.totalPence/100).toFixed(2):'',
     cancelled?'Admission is closed for this event. Please do not travel to the venue for this booking.':event.arrivalInfo||'Print your ticket or show the QR on your phone. Bring ID matching the attendee name. Each ticket admits one named attendee once.',
+    !cancelled?'Before travelling, open your private ticket link and save a backup: use Download ticket image for each attendee, Print / save as PDF, or screenshot the full ticket. You can reopen valid tickets from this email. Keep copies private; saved tickets still require live validation and cannot admit after a refund or previous admission.':'',
     event.refundPolicy?'Refunds and cancellations: '+event.refundPolicy:'',event.transferPolicy?'Transfers: '+event.transferPolicy:'',
     withdrawn&&event.fighterChangePolicy?'Options after a fight-card change: '+event.fighterChangePolicy:'',
     event.contactEmail?'Contact: '+event.contactEmail:'',event.contactPhone?'Telephone: '+event.contactPhone:''];
