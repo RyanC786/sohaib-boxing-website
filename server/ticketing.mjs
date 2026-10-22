@@ -32,6 +32,7 @@ export async function receipt(db,config,token){
   if(! /^[A-Za-z0-9_-]{43}$/.test(token||''))throw fail('This ticket link is not valid.',404);
   const order=await rpc(db,'ringside_receipt',{p_hash:hashToken(token)});
   if(!order)throw fail('Tickets are not available yet, or this link has been withdrawn. Check the booking email or contact the organiser.',404);
+  if(order.bookingStatus==='refunded'||order.bookingStatus==='review_required')return {...order,tickets:[]};
   order.tickets=await Promise.all(order.tickets.map(async ticket=>{
     const token=ticketToken(ticket.id,config.ticketKey);
     if(ticket.status!=='valid')return ticket;

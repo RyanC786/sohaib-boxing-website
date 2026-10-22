@@ -35,4 +35,14 @@ test('printed QR image decodes to the exact admission token and not attendee dat
   const decoded=jsQR(new Uint8ClampedArray(image.data),image.width,image.height);
   assert.equal(decoded.data,ticketToken(id,key));assert.equal(decoded.data.includes('Private attendee'),false);
   assert.equal(order.tickets[1].qr,undefined);assert.equal(order.tickets[1].token,undefined);
+  const reopened=await receipt(db,{ticketKey:key},downloadToken);
+  assert.equal(reopened.tickets[0].token,order.tickets[0].token);
+  assert.equal(reopened.tickets[0].qr,order.tickets[0].qr);
+});
+
+test('refunded and review-held receipt links return status without admission QR material',async()=>{
+  for(const bookingStatus of ['refunded','review_required']){
+    const db={async rpc(){return {data:{bookingStatus,reference:'test-order',tickets:[{id:'test-ticket',status:'valid'}]},error:null};}};
+    assert.deepEqual((await receipt(db,{ticketKey:'f'.repeat(64)},'r'.repeat(43))).tickets,[]);
+  }
 });

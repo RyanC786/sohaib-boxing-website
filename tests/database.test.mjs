@@ -181,7 +181,10 @@ test('capacity and immutable order prices are server controlled; retries do not 
     assert.equal((await db.query('select total_pence from ringside_private.orders where id=$1',[order.id])).rows[0].total_pence,50000);
     await asUser(db,ids.buyer);await assert.rejects(db.query('select public.ringside_receipt($1)',['b'.repeat(64)]),/permission denied/);
     await db.exec('reset role');await db.query('select public.ringside_refund_order($1,$2,$3)',['evt_refund','pi_test_fixture',true]);
-    assert.equal((await db.query('select public.ringside_receipt($1) as receipt',['b'.repeat(64)])).rows[0].receipt,null);
+    const refundedReceipt=(await db.query('select public.ringside_receipt($1) as receipt',['b'.repeat(64)])).rows[0].receipt;
+    assert.equal(refundedReceipt.bookingStatus,'refunded');assert.deepEqual(refundedReceipt.tickets,[]);
+    assert.equal(refundedReceipt.reference,order.id);
+    assert.equal((await db.query('select public.ringside_receipt($1) as receipt',['f'.repeat(64)])).rows[0].receipt,null);
     assert.ok((await db.query('select status from ringside_private.tickets where order_id=$1',[order.id])).rows.every(t=>t.status==='revoked'));
     const lateOrder=(await db.query('select public.ringside_reserve_order($1,$2,$3,$4) as booking',['50000000-0000-4000-8000-000000000003',category,'late@example.test',JSON.stringify(names)])).rows[0].booking;
     await db.query('select public.ringside_attach_checkout($1,$2,$3)',[lateOrder.id,'cs_test_late','c'.repeat(64)]);
