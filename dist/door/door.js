@@ -1,7 +1,7 @@
 import {escapeHTML as e} from '/model.mjs';
 const app=document.querySelector('#app'),notice=document.querySelector('#notice');
-let session,events=[],stream,frame,detecting=false,busy=false,result,selected='',enrollment,installPrompt,noticeTimer,expiryTimer,recovered=false,view=0,resumePending=false,cameraStarting=false,cameraVersion=0;
-const SCANNER_VERSION='2026.10.27.2';
+let session,events=[],stream,frame,detecting=false,busy=false,result,selected='',enrollment,installPrompt,noticeTimer,expiryTimer,backgroundTimer,recovered=false,view=0,resumePending=false,cameraStarting=false,cameraVersion=0;
+const SCANNER_VERSION='2026.10.27.3';
 function cameraStatus(text){const target=document.querySelector('#camera-status');if(target)target.textContent=text;}
 const stamp=value=>new Date(value).toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short',timeZone:'Europe/London'});
 const field=(label,name,type='text',attrs='')=>`<label class="field">${label}<input name="${name}" type="${type}" required ${attrs}></label>`;
@@ -9,7 +9,7 @@ function tell(text,error=false){notice.textContent=text;notice.className=error?'
 async function api(path,options={}){
   if(!navigator.onLine)throw Error('You are offline. Reconnect before checking or admitting a ticket.');
   let response;try{response=await fetch('/api/door/'+path,{cache:'no-store',credentials:'same-origin',...options,headers:{'Content-Type':'application/json',...options.headers},signal:AbortSignal.timeout(18000)});}catch{throw Error('Connection lost. Do not admit until the ticket is checked again.');}
-  const data=await response.json();if(!response.ok){if(response.status===401){stopCamera();result=null;}throw Error(data.error||'The request could not be completed.');}return data;
+  const data=await response.json();if(!response.ok){if(response.status===401){stopCamera('Camera paused because your sign-in needs to be renewed.');result=null;}throw Error(data.error||'The request could not be completed.');}return data;
 }
 const auth=data=>api('auth',{method:'POST',body:JSON.stringify(data)});
 async function run(work){if(busy)return;busy=true;document.querySelectorAll('button,input,select').forEach(b=>b.disabled=true);try{await work();}catch(error){tell(error.message,true);}finally{busy=false;document.querySelectorAll('button,input,select').forEach(b=>b.disabled=false);const admit=document.querySelector('#admit');if(admit)admit.disabled=!document.querySelector('#id-checked')?.checked||!navigator.onLine;if(resumePending&&!document.hidden){resumePending=false;void resumeDesk();}}}
@@ -54,7 +54,10 @@ async function check(raw){
   stopCamera();clearTimeout(expiryTimer);result=null;document.querySelector('#result').replaceChildren();
   const token=ticketToken(raw.trim());if(!token)throw Error('This is not a Ringside ticket code. Ask the attendee for their ticket email.');
   const version=view,eventId=selected;
-  const data=await api('scan',{method:'POST',body:JSON.stringify({event:eventId,token,admit:false})});
+  cameraStatus('QR read. Checking this ticket securely…');
+  let data;
+  try{data=await api('scan',{method:'POST',body:JSON.stringify({event:eventId,token,admit:false})});}
+  catch(error){if(version===view){cameraStatus('Ticket check failed. Entry has not been confirmed.');const target=document.querySelector('#result');target.innerHTML=`<section class="result invalid"><h2>Ticket check could not finish</h2><p>${e(error.message)}</p><p>Do not admit until a fresh check succeeds.</p><button id="next" class="quiet wide">Try scanning again</button></section>`;target.scrollIntoView?.({block:'center'});}throw error;}
   if(version!==view||!navigator.onLine)return;
   result={...data,token,event:eventId};showResult();
   cameraStatus('Ticket read. Review the admission result below.');
@@ -74,7 +77,7 @@ async function admit(){
   try{const data=await api('scan',{method:'POST',body:JSON.stringify({event:selected,token,admit:true})});if(version!==view||!navigator.onLine)return;result=data;showResult();}
   catch(error){result=null;document.querySelector('#result').innerHTML='<section class="result invalid"><h2>Entry not confirmed</h2><p>Scan this ticket again. If the server recorded entry, it will show “Already used”. Ask the supervisor before letting the attendee through.</p><button id="next" class="quiet wide">Check again</button></section>';throw error;}
 }
-function stopCamera(){cameraVersion++;cancelAnimationFrame(frame);if(stream)stream.getTracks().forEach(track=>track.stop());stream=null;detecting=false;const button=document.querySelector('#camera');if(button)button.hidden=false;cameraStatus('Camera paused. Tap Open ticket camera to start.');}
+function stopCamera(reason='Camera paused. Tap Open ticket camera to start.'){cameraVersion++;cancelAnimationFrame(frame);if(stream)stream.getTracks().forEach(track=>track.stop());stream=null;detecting=false;const button=document.querySelector('#camera');if(button)button.hidden=false;cameraStatus(reason);}
 async function cameraVisible(version){
   if(!document.hidden)return true;
   // Android can resolve permission while its system permission sheet is still
@@ -104,17 +107,18 @@ async function camera(){
     const message=messages[error.name]||'The camera preview could not start. Close other camera apps and tap Open ticket camera to retry.';cameraStatus(message);throw Error(message);
   }
   finally{cameraStarting=false;}
-  let detector;if('BarcodeDetector' in window){try{const formats=await BarcodeDetector.getSupportedFormats();if(formats.includes('qr_code'))detector=new BarcodeDetector({formats:['qr_code']});}catch{}}
+  // Use one bundled decoder on both platforms, without waiting for an Android
+  // barcode service during camera startup.
+  if(typeof window.jsQR!=='function'){stopCamera('The QR reader did not load. Refresh the scanner while online, then try again.');return;}
   const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d',{willReadFrequently:true});let last=0;
-  async function tick(time){if(!stream||version!==cameraVersion)return;if(time-last>200&&!detecting&&video.readyState>=2){last=time;detecting=true;try{
-    let raw;if(detector)raw=(await detector.detect(video))[0]?.rawValue;
-    else{canvas.width=Math.min(720,video.videoWidth);canvas.height=Math.round(canvas.width*video.videoHeight/video.videoWidth);ctx.drawImage(video,0,0,canvas.width,canvas.height);const image=ctx.getImageData(0,0,canvas.width,canvas.height);raw=window.jsQR?.(image.data,image.width,image.height,{inversionAttempts:'dontInvert'})?.data;}
+  async function tick(time){if(!stream||version!==cameraVersion)return;if(!document.hidden&&time-last>200&&!detecting&&video.readyState>=2){last=time;detecting=true;try{
+    canvas.width=Math.min(720,video.videoWidth);canvas.height=Math.round(canvas.width*video.videoHeight/video.videoWidth);ctx.drawImage(video,0,0,canvas.width,canvas.height);const image=ctx.getImageData(0,0,canvas.width,canvas.height);const raw=window.jsQR(image.data,image.width,image.height,{inversionAttempts:'dontInvert'})?.data;
     if(version!==cameraVersion)return;
     if(raw&&ticketToken(raw.trim())&&!busy){await run(()=>check(raw));return;}
   }catch{}finally{detecting=false;}}if(stream&&version===cameraVersion)frame=requestAnimationFrame(tick);}
   frame=requestAnimationFrame(tick);
 }
-function connection(){const el=document.querySelector('#connection');el.textContent=navigator.onLine?'● Online checks':'● Offline · admission paused';el.className='connection'+(navigator.onLine?'':' offline');if(!navigator.onLine){view++;stopCamera();clearTimeout(expiryTimer);result=null;const target=document.querySelector('#result');if(target)target.replaceChildren();}const button=document.querySelector('#admit');if(button)button.disabled=!navigator.onLine||!document.querySelector('#id-checked')?.checked;}
+function connection(){const el=document.querySelector('#connection');el.textContent=navigator.onLine?'● Online checks':'● Offline · admission paused';el.className='connection'+(navigator.onLine?'':' offline');if(!navigator.onLine){view++;stopCamera('Camera paused because the phone went offline. Reconnect, then open the camera again.');clearTimeout(expiryTimer);result=null;const target=document.querySelector('#result');if(target)target.replaceChildren();}const button=document.querySelector('#admit');if(button)button.disabled=!navigator.onLine||!document.querySelector('#id-checked')?.checked;}
 app.addEventListener('submit',event=>{event.preventDefault();const data=Object.fromEntries(new FormData(event.target));run(async()=>{
   if(event.target.id==='login'){await auth({action:'login',...data,remember:data.remember==='on'});await refresh();}
   if(event.target.id==='verify'){await auth({action:'verify',...data});enrollment=null;await refresh();}
@@ -138,10 +142,10 @@ async function resumeDesk(){
   if(!session?.authenticated||!session.mfaVerified)return;
   if(busy){resumePending=true;return;}
   if(!navigator.onLine){connection();return;}
-  await run(async()=>{try{await refresh({preserveCamera:true});}catch(error){stopCamera();throw error;}});
+  await run(async()=>{try{await refresh({preserveCamera:true});}catch(error){stopCamera('Camera paused because staff access could not be rechecked. '+error.message);throw error;}});
 }
-document.addEventListener('visibilitychange',()=>{if(document.hidden){view++;if(!cameraStarting)stopCamera();result=null;clearTimeout(expiryTimer);const target=document.querySelector('#result');if(target)target.replaceChildren();}else{const button=document.querySelector('#camera');if(button)button.hidden=Boolean(stream);void resumeDesk();}});
-window.addEventListener('pagehide',stopCamera);
+document.addEventListener('visibilitychange',()=>{clearTimeout(backgroundTimer);if(document.hidden){view++;if(!cameraStarting)backgroundTimer=setTimeout(()=>{if(document.hidden)stopCamera('Camera paused because the scanner went into the background. Tap Open ticket camera to resume.');},750);result=null;clearTimeout(expiryTimer);const target=document.querySelector('#result');if(target)target.replaceChildren();}else{const button=document.querySelector('#camera');if(button)button.hidden=Boolean(stream);void resumeDesk();}});
+window.addEventListener('pagehide',()=>stopCamera('Camera paused because this page was left. Reopen the scanner to continue.'));
 window.addEventListener('pageshow',event=>{if(event.persisted)void resumeDesk();});
 window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();installPrompt=event;});
 async function start(){

@@ -6,7 +6,7 @@ import {readFileSync} from 'node:fs';
 // Execute the shipped scanner with simulated phone visibility/media events.
 // No real camera, account, ticket or provider request is used.
 function phone(){
-  const listeners={},tracks=[],frames=new Map();let serial=0,request,playError,auth=true,scanCalls=0;
+  const listeners={},tracks=[],frames=new Map(),timers=new Map();let serial=0,request,playError,auth=true,scanCalls=0;
   const element=()=>({hidden:false,disabled:false,textContent:'',style:{},className:'',addEventListener(){},replaceChildren(){},append(){}});
   const nodes=Object.fromEntries(['app','notice','connection','result','camera','venue','camera-status'].map(id=>['#'+id,element()]));
   const video=nodes['#video']={...element(),readyState:2,videoWidth:720,videoHeight:720,srcObject:null,async play(){if(playError)throw playError;}};
@@ -16,7 +16,7 @@ function phone(){
   const document={hidden:false,querySelector:id=>nodes[id]||null,querySelectorAll:()=>[],addEventListener:(name,fn)=>{const group=listenerMap.get(name)||new Set();group.add(fn);listenerMap.set(name,group);listeners[name]=()=>{for(const handler of [...group])handler();};},removeEventListener:(name,fn)=>listenerMap.get(name)?.delete(fn),createElement:()=>({...element(),getContext:()=>({drawImage(){},getImageData:()=>({data:[],width:1,height:1})})})};
   const session={configured:true,authenticated:true,mfaVerified:true,role:'scanner',email:'staff@example.test'};
   const events=[{id:'event',title:'Test',venue:'Test',startsAt:'2026-10-28',scanOpensAt:'2026-10-27',scanClosesAt:'2026-10-29'}];
-  const context=vm.createContext({document,navigator:{onLine:true,mediaDevices:{getUserMedia:()=>new Promise(resolve=>request=resolve)}},window:{addEventListener(){},jsQR:()=>null},location:{origin:'https://boxing.test',search:'',hash:''},history:{},URL,URLSearchParams,AbortSignal,setTimeout:()=>1,clearTimeout(){},requestAnimationFrame:fn=>{frames.set(++serial,fn);return serial;},cancelAnimationFrame:id=>frames.delete(id),fetch:async url=>{if(url.endsWith('/scan'))scanCalls++;return {ok:true,json:async()=>url.endsWith('/auth')?{...session,authenticated:auth}:events};}});
+  const context=vm.createContext({document,navigator:{onLine:true,mediaDevices:{getUserMedia:()=>new Promise(resolve=>request=resolve)}},window:{addEventListener(){},jsQR:()=>null},location:{origin:'https://boxing.test',search:'',hash:''},history:{},URL,URLSearchParams,AbortSignal,setTimeout:(fn,delay)=>{timers.set(++serial,{fn,delay});return serial;},clearTimeout:id=>timers.delete(id),requestAnimationFrame:fn=>{frames.set(++serial,fn);return serial;},cancelAnimationFrame:id=>frames.delete(id),fetch:async url=>{if(url.endsWith('/scan'))scanCalls++;return {ok:true,json:async()=>url.endsWith('/auth')?{...session,authenticated:auth}:events};}});
   const source=readFileSync(new URL('../dist/door/door.js',import.meta.url),'utf8').replace(/^import .*\r?\n/,'const e=value=>String(value);\n').replace('export function ticketToken','function ticketToken').replace(/connection\(\);start\(\)\.catch\([^\n]+\);/,'');
   vm.runInContext(source,context);
   vm.runInContext(`session=${JSON.stringify(session)};events=${JSON.stringify(events)};selected='event';`,context);
@@ -25,6 +25,7 @@ function phone(){
     run:code=>vm.runInContext(code,context),
     hide(){document.hidden=true;listeners.visibilitychange();},
     show(){document.hidden=false;listeners.visibilitychange();},
+    backgroundTimeout(){for(const [id,{fn,delay}] of [...timers])if(delay===750){timers.delete(id);fn();}},
     resolve(){const track={stopped:false,listeners:{},stop(){this.stopped=true;},addEventListener(name,fn){this.listeners[name]=fn;}};tracks.push(track);const stream={getTracks:()=>[track],getVideoTracks:()=>[track]};request(stream);return stream;},
     failPlayback(){playError=Error('Playback failed');},
     revoke(){auth=false;},
@@ -53,9 +54,18 @@ test('Android permission may resolve before its permission sheet has returned th
 
 test('backgrounding an active camera stops it and restores the open button',async()=>{
   const p=phone(),opening=p.run('run(()=>camera())');p.resolve();await opening;
-  p.hide();assert.equal(p.tracks[0].stopped,true);assert.equal(p.frames.size,0);
+  p.hide();p.backgroundTimeout();assert.equal(p.tracks[0].stopped,true);assert.equal(p.frames.size,0);
   assert.equal(p.nodes['#camera'].hidden,false);
   p.show();await settle();assert.ok(p.renders>0);
+});
+
+test('brief Android foreground transitions preserve preview and do not invoke a platform barcode service',async()=>{
+  const p=phone();Object.defineProperty(p.context.window,'BarcodeDetector',{get(){throw Error('Platform barcode service must not be used');}});
+  const opening=p.run('run(()=>camera())');p.resolve();await opening;
+  p.hide();assert.equal(p.tracks[0].stopped,false);
+  const [id,tick]=[...p.frames][0];p.frames.delete(id);await tick(500);assert.equal(p.scans,0);
+  p.show();p.backgroundTimeout();await settle();
+  assert.equal(p.tracks[0].stopped,false);assert.equal(p.renders,0);assert.equal(p.frames.size,1);
 });
 
 test('late camera permission resolution cannot reopen a desk that was closed',async()=>{
