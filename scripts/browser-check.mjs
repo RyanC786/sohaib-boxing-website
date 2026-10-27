@@ -17,7 +17,7 @@ try{
   await page.screenshot({path:'output/door/sign-in-mobile.png',fullPage:true});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   signedIn=true;await page.reload();await page.waitForLoadState('networkidle');
-  await page.getByText('Camera unavailable? Enter the ticket code',{exact:true}).click();
+  await page.getByText('Enter a ticket code instead',{exact:true}).click();
   await page.getByLabel('43-character ticket code').fill('a'.repeat(43));await page.getByRole('button',{name:'Check ticket',exact:true}).click();
   await page.getByText('Check ID before entry',{exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Admit attendee',exact:true}).isDisabled(),true);
   await page.getByLabel('I have checked the name against their ID.').check();await page.getByRole('button',{name:'Admit attendee',exact:true}).click();await page.getByText('Admitted',{exact:true}).waitFor();

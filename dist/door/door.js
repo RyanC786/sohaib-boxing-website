@@ -1,6 +1,8 @@
 import {escapeHTML as e} from '/model.mjs';
 const app=document.querySelector('#app'),notice=document.querySelector('#notice');
 let session,events=[],stream,frame,detecting=false,busy=false,result,selected='',enrollment,installPrompt,noticeTimer,expiryTimer,recovered=false,view=0,resumePending=false,cameraStarting=false,cameraVersion=0;
+const SCANNER_VERSION='2026.10.27.2';
+function cameraStatus(text){const target=document.querySelector('#camera-status');if(target)target.textContent=text;}
 const stamp=value=>new Date(value).toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short',timeZone:'Europe/London'});
 const field=(label,name,type='text',attrs='')=>`<label class="field">${label}<input name="${name}" type="${type}" required ${attrs}></label>`;
 function tell(text,error=false){notice.textContent=text;notice.className=error?'error':'';notice.style.display='block';clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>notice.style.display='none',9000);}
@@ -19,7 +21,7 @@ function mfa(){
   stopCamera();const factors=session.factors||[];
   app.innerHTML=`<div class="eyebrow">Secure staff access</div><h1>One more<br><span class="gold">check.</span></h1><section class="panel"><h2>${factors.length?'Verify your authenticator':'Set up your authenticator'}</h2><p>${factors.length?'Enter the current six-digit code from your authenticator app.':'Connect an authenticator app to protect your staff account. You will need it each time you sign in.'}</p>${!factors.length&&!enrollment?'<button id="enroll" class="wide">Set up authenticator</button>':''}${enrollment?`<img class="auth-qr" src="${e(enrollment.qr.startsWith('data:')?enrollment.qr:'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(enrollment.qr))}" alt="Scan this setup QR with your authenticator app"><details><summary>Enter setup key manually</summary><code class="setup-key">${e(enrollment.secret)}</code></details>`:''}${factors.length||enrollment?`<form id="verify">${factors.length>1?`<label class="field">Authenticator<select name="factorId">${factors.map(f=>`<option value="${e(f.id)}">${e(f.name||'Authenticator')}</option>`).join('')}</select></label>`:`<input name="factorId" type="hidden" value="${e(factors[0]?.id||enrollment.id)}">`}${field('Authenticator code','code','text','inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6"')}<button class="wide">Verify and continue</button></form>`:''}</section>${toolbar()}`;
 }
-function toolbar(){return `<div class="toolbar"><small>${e(session?.email||'Staff account')}</small><button id="logout" class="quiet">Sign out</button></div>`;}
+function toolbar(){return `<div class="toolbar"><small>${e(session?.email||'Staff account')}</small><button id="logout" class="quiet">Sign out</button></div><p class="help">Scanner version ${SCANNER_VERSION}</p>`;}
 async function refresh({preserveCamera=false}={}){
   const previousRole=session?.role;
   session=await api('auth');enrollment=null;
@@ -39,7 +41,7 @@ async function refresh({preserveCamera=false}={}){
 function passwordView(){stopCamera();app.innerHTML=`<div class="eyebrow">Account security</div><h1>Your password.<br><span class="gold">Your access.</span></h1><section class="panel"><p>Use a unique password of at least 14 characters. Changing it signs out your other devices.</p><form id="password">${field('New password','password','password','autocomplete="new-password" minlength="14" maxlength="128"')}${field('Repeat new password','repeat','password','autocomplete="new-password" minlength="14" maxlength="128"')}<button class="wide">Change password</button></form><button id="retry" class="text-button">Back to scanner</button></section>${toolbar()}`;}
 function desk(){
   view++;stopCamera();result=null;selected=events.some(event=>event.id===selected)?selected:events[0]?.id||'';
-  app.innerHTML=`<div class="eyebrow">Admission desk · Online checks</div><h1>Ready for<br><span class="gold">fight night.</span></h1>${events.length?`<label class="field">Your assigned event<select id="event">${events.map(event=>`<option value="${e(event.id)}" ${event.id===selected?'selected':''}>${e(event.title)} · ${e(stamp(event.startsAt))}</option>`).join('')}</select></label><p id="venue" class="help"></p><div id="scan-area"><div class="scanner"><video id="video" playsinline muted aria-label="Ticket scanning camera"></video><div class="viewfinder" aria-hidden="true"></div><button id="camera" class="start-camera">Open ticket camera</button><span class="camera-label">Centre the ticket QR inside the frame</span></div></div><div id="result" aria-live="polite"></div><details class="panel"><summary>Camera unavailable? Enter the ticket code</summary><form id="manual">${field('43-character ticket code','token','text','autocomplete="off" autocapitalize="none" spellcheck="false" minlength="43" maxlength="43"')}<button class="quiet wide">Check ticket</button></form></details>`:`<section class="panel"><h2>No events assigned yet</h2><p>Ask the organiser to assign your account to the event. Only your assigned events will appear here.</p><button id="retry" class="quiet">Refresh events</button></section>`}${toolbar()}<button id="change-password" class="text-button">Change my password</button>${installCard()}`;
+  app.innerHTML=`<div class="eyebrow">Admission desk · Online checks</div><h1>Ready for<br><span class="gold">fight night.</span></h1>${events.length?`<label class="field">Your assigned event<select id="event">${events.map(event=>`<option value="${e(event.id)}" ${event.id===selected?'selected':''}>${e(event.title)} · ${e(stamp(event.startsAt))}</option>`).join('')}</select></label><p id="venue" class="help"></p><div id="scan-area"><div class="scanner"><video id="video" playsinline muted aria-label="Ticket scanning camera"></video><div class="viewfinder" aria-hidden="true"></div><button id="camera" class="start-camera">Open ticket camera</button><span class="camera-label">Centre the ticket QR inside the frame</span></div><p id="camera-status" class="help" role="status">Camera ready. Tap Open ticket camera.</p></div><div id="result" aria-live="polite"></div><details class="panel"><summary>Enter a ticket code instead</summary><form id="manual">${field('43-character ticket code','token','text','autocomplete="off" autocapitalize="none" spellcheck="false" minlength="43" maxlength="43"')}<button class="quiet wide">Check ticket</button></form></details>`:`<section class="panel"><h2>No events assigned yet</h2><p>Ask the organiser to assign your account to the event. Only your assigned events will appear here.</p><button id="retry" class="quiet">Refresh events</button></section>`}${toolbar()}<button id="change-password" class="text-button">Change my password</button>${installCard()}`;
   if(session.role==='owner'){const link=document.createElement('a');link.className='text-button';link.href='/admin/';link.textContent='Open website dashboard';app.append(link);}
   showVenue();
 }
@@ -55,6 +57,7 @@ async function check(raw){
   const data=await api('scan',{method:'POST',body:JSON.stringify({event:eventId,token,admit:false})});
   if(version!==view||!navigator.onLine)return;
   result={...data,token,event:eventId};showResult();
+  cameraStatus('Ticket read. Review the admission result below.');
   if(data.status==='valid')expiryTimer=setTimeout(()=>{result=null;const target=document.querySelector('#result');if(target){target.innerHTML='<div class="panel"><h2>Check expired</h2><p>Scan the ticket again before admitting.</p><button id="next" class="quiet">Scan again</button></div>'; }},60000);
 }
 function showResult(){
@@ -62,6 +65,7 @@ function showResult(){
   const descriptions={valid:'Compare this name with the attendee’s ID, then confirm admission.',admitted:'Entry is recorded. Welcome them to fight night.',already_used:`This ticket was admitted at ${result.usedAt?stamp(result.usedAt):'an earlier time'}. Ask the supervisor to help.`,invalid:'This ticket is not valid for this event. Ask the supervisor to check the booking.',closed:'This event is outside its admission window, postponed, cancelled or completed.'};
   const status=Object.hasOwn(labels,result.status)?result.status:'invalid';
   document.querySelector('#result').innerHTML=`<section class="result ${status}"><div class="state">${e(labels[status])}</div>${result.name?`<div class="attendee">${e(result.name)}</div><div class="ticket-type">${e(result.category)}</div>`:''}<p>${e(descriptions[status])}</p>${status==='valid'?'<label class="check-id"><input id="id-checked" type="checkbox">I have checked the name against their ID.</label><button id="admit" class="wide" disabled>Admit attendee</button>':''}<button id="next" class="quiet wide" style="margin-top:12px">Scan next ticket</button></section>`;
+  document.querySelector('#result').scrollIntoView?.({block:'center',behavior:'smooth'});
 }
 async function admit(){
   if(!result||result.status!=='valid'||result.event!==selected||!document.querySelector('#id-checked')?.checked)throw Error('Scan the ticket and check ID first.');
@@ -70,20 +74,35 @@ async function admit(){
   try{const data=await api('scan',{method:'POST',body:JSON.stringify({event:selected,token,admit:true})});if(version!==view||!navigator.onLine)return;result=data;showResult();}
   catch(error){result=null;document.querySelector('#result').innerHTML='<section class="result invalid"><h2>Entry not confirmed</h2><p>Scan this ticket again. If the server recorded entry, it will show “Already used”. Ask the supervisor before letting the attendee through.</p><button id="next" class="quiet wide">Check again</button></section>';throw error;}
 }
-function stopCamera(){cameraVersion++;cancelAnimationFrame(frame);if(stream)stream.getTracks().forEach(track=>track.stop());stream=null;detecting=false;const button=document.querySelector('#camera');if(button)button.hidden=false;}
+function stopCamera(){cameraVersion++;cancelAnimationFrame(frame);if(stream)stream.getTracks().forEach(track=>track.stop());stream=null;detecting=false;const button=document.querySelector('#camera');if(button)button.hidden=false;cameraStatus('Camera paused. Tap Open ticket camera to start.');}
+async function cameraVisible(version){
+  if(!document.hidden)return true;
+  // Android can resolve permission while its system permission sheet is still
+  // dismissing. Wait for foreground before attaching/playing the preview.
+  await new Promise(resolve=>{
+    const visible=()=>{if(!document.hidden)done();};
+    const done=()=>{clearTimeout(timeout);document.removeEventListener('visibilitychange',visible);resolve();};
+    const timeout=setTimeout(done,3000);document.addEventListener('visibilitychange',visible);
+  });
+  return version===cameraVersion&&!document.hidden;
+}
 async function camera(){
   if(!navigator.onLine)throw Error('Reconnect before scanning.');
   if(!navigator.mediaDevices?.getUserMedia)throw Error('Use Safari or Chrome over HTTPS, or enter the ticket code below.');
   stopCamera();result=null;document.querySelector('#result').replaceChildren();
-  const version=cameraVersion,video=document.querySelector('#video');cameraStarting=true;
+  const version=cameraVersion,video=document.querySelector('#video');cameraStarting=true;cameraStatus('Opening camera. Allow camera access if Android asks.');
   try{
     const opened=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280}},audio:false});
-    if(version!==cameraVersion||document.hidden||video!==document.querySelector('#video')){opened.getTracks().forEach(track=>track.stop());return;}
+    if(version!==cameraVersion||!(await cameraVisible(version))||video!==document.querySelector('#video')){opened.getTracks().forEach(track=>track.stop());cameraStatus('Camera opening was interrupted. Return to this app and tap Open ticket camera again.');return;}
     stream=opened;video.srcObject=stream;video.muted=true;await video.play();
-    if(version!==cameraVersion||document.hidden){if(version===cameraVersion)stopCamera();return;}
-    document.querySelector('#camera').hidden=true;
-    for(const track of stream.getVideoTracks())track.addEventListener('ended',()=>{if(version===cameraVersion){stopCamera();tell('Camera was interrupted. Tap Open ticket camera to restart.',true);}},{once:true});
-  }catch(error){if(version===cameraVersion)stopCamera();throw Error(error.name==='NotAllowedError'?'Camera access is unavailable. Allow camera access in browser settings, or enter the ticket code below.':'The camera could not stay open. Close other apps using the camera, then tap Open ticket camera to retry.');}
+    if(version!==cameraVersion||!(await cameraVisible(version))){if(version===cameraVersion)stopCamera();return;}
+    document.querySelector('#camera').hidden=true;cameraStatus('Camera on. Point the rear camera at the ticket QR.');
+    for(const track of stream.getVideoTracks())track.addEventListener('ended',()=>{if(version===cameraVersion){stopCamera();cameraStatus('Android stopped the camera. Close other camera apps, then tap Open ticket camera.');tell('Camera was interrupted. Tap Open ticket camera to restart.',true);}},{once:true});
+  }catch(error){
+    if(version===cameraVersion)stopCamera();
+    const messages={NotAllowedError:'Camera permission is blocked. In Android settings, allow camera access for this app and Chrome, then reopen the scanner.',NotFoundError:'No camera was found. Check that the phone camera is available, then reopen the scanner.',NotReadableError:'Android could not start the camera. Close other apps using it, then reopen the scanner.',AbortError:'Android interrupted camera startup. Close other camera apps and try again.'};
+    const message=messages[error.name]||'The camera preview could not start. Close other camera apps and tap Open ticket camera to retry.';cameraStatus(message);throw Error(message);
+  }
   finally{cameraStarting=false;}
   let detector;if('BarcodeDetector' in window){try{const formats=await BarcodeDetector.getSupportedFormats();if(formats.includes('qr_code'))detector=new BarcodeDetector({formats:['qr_code']});}catch{}}
   const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d',{willReadFrequently:true});let last=0;
