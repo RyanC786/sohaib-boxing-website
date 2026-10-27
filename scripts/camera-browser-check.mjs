@@ -15,15 +15,18 @@ try{
   browser=await chromium.launch({headless:true,channel:'chrome',args:['--use-fake-ui-for-media-stream','--use-fake-device-for-media-stream']});
   const page=await browser.newPage({viewport:{width:412,height:915},isMobile:true,hasTouch:true,serviceWorkers:'block'});
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
-  await page.route('**/api/door/auth',route=>route.fulfill({json:{configured:true,authenticated:true,role:'scanner',email:'camera-test@example.test',mfaVerified:true}}));
+  await page.route('**/api/door/auth',route=>route.fulfill({json:{configured:true,authenticated:true,role:'owner',email:'camera-test@example.test',mfaVerified:true}}));
   await page.route('**/api/door/events',route=>route.fulfill({json:[{id:'synthetic-event',title:'LOCAL CAMERA TEST',venue:'Synthetic media only',startsAt:'2026-10-28T14:30:00Z',scanOpensAt:'2026-10-27T00:00:00Z',scanClosesAt:'2026-10-29T00:00:00Z'}]}));
-  await page.goto(`http://127.0.0.1:${server.address().port}/door/`);await page.waitForLoadState('networkidle');
+  await page.goto(`http://127.0.0.1:${server.address().port}/scanner-check/`);await page.waitForLoadState('networkidle');
+  assert.equal(new URL(page.url()).pathname,'/scanner-check/');
+  assert.equal(await page.locator('link[rel=manifest]').count(),0);
+  await page.getByText('Browser camera check. This page uses your existing staff access and does not install or open the phone app.',{exact:true}).waitFor();
   await page.getByRole('button',{name:'Open ticket camera',exact:true}).click();
   await page.waitForFunction(()=>{const v=document.querySelector('#video');return v?.srcObject?.active&&v.videoWidth>0&&!v.paused;});
   await page.waitForTimeout(2000);
   assert.equal(await page.locator('#video').evaluate(v=>v.srcObject?.active&&!v.paused),true);
   assert.equal(await page.locator('#camera').isVisible(),false);
-  await fs.mkdir('output/verification',{recursive:true});await page.screenshot({path:'output/verification/android-camera-synthetic.png',fullPage:true});
+  await fs.mkdir('output/verification',{recursive:true});await page.screenshot({path:'output/verification/android-browser-only-camera-synthetic.png',fullPage:true});
   assert.deepEqual(errors,[]);
   console.log('PASS: Chromium mobile preview remains playing; camera button is hidden; no page errors.');
   // Actual jsQR decoding from a synthetic canvas-backed MediaStream, followed

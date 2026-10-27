@@ -1,7 +1,8 @@
 import {escapeHTML as e} from '/model.mjs';
 const app=document.querySelector('#app'),notice=document.querySelector('#notice');
+const browserOnly=document.body?.dataset.scannerBrowser==='true';
 let session,events=[],stream,frame,detecting=false,busy=false,result,selected='',enrollment,installPrompt,noticeTimer,expiryTimer,backgroundTimer,recovered=false,view=0,resumePending=false,cameraStarting=false,cameraVersion=0;
-const SCANNER_VERSION='2026.10.27.3';
+const SCANNER_VERSION='2026.10.27.4';
 function cameraStatus(text){const target=document.querySelector('#camera-status');if(target)target.textContent=text;}
 const stamp=value=>new Date(value).toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short',timeZone:'Europe/London'});
 const field=(label,name,type='text',attrs='')=>`<label class="field">${label}<input name="${name}" type="${type}" required ${attrs}></label>`;
@@ -13,7 +14,7 @@ async function api(path,options={}){
 }
 const auth=data=>api('auth',{method:'POST',body:JSON.stringify(data)});
 async function run(work){if(busy)return;busy=true;document.querySelectorAll('button,input,select').forEach(b=>b.disabled=true);try{await work();}catch(error){tell(error.message,true);}finally{busy=false;document.querySelectorAll('button,input,select').forEach(b=>b.disabled=false);const admit=document.querySelector('#admit');if(admit)admit.disabled=!document.querySelector('#id-checked')?.checked||!navigator.onLine;if(resumePending&&!document.hidden){resumePending=false;void resumeDesk();}}}
-function installCard(){return `<details class="rule"><summary>Install on your phone</summary><p class="help">iPhone: open this page in Safari, tap Share, then Add to Home Screen. Android: use your browser’s Install app or Add to Home screen option.</p>${installPrompt?'<button id="install" class="quiet wide">Install Ringside Door</button>':''}<p class="help">Installation does not grant access. Every staff member needs an invited account, an authenticator and an event assignment.</p></details>`;}
+function installCard(){if(browserOnly)return '<p class="help">Browser camera check. This page uses your existing staff access and does not install or open the phone app.</p>';return `<details class="rule"><summary>Install on your phone</summary><p class="help">iPhone: open this page in Safari, tap Share, then Add to Home Screen. Android: use your browser’s Install app or Add to Home screen option.</p>${installPrompt?'<button id="install" class="quiet wide">Install Ringside Door</button>':''}<p class="help">Installation does not grant access. Every staff member needs an invited account, an authenticator and an event assignment.</p></details>`;}
 function login(recovery=false){
   stopCamera();app.innerHTML=`<div class="eyebrow">Fight night · Staff entrance</div><h1>The right people.<br><span class="gold">Through the ropes.</span></h1><div class="login-layout"><div class="intro"><p>Scan the ticket. Check their ID. Welcome them to fight night.</p><span class="badge">INVITED STAFF ONLY</span>${installCard()}</div><section class="panel"><h2>${recovery?'Recover your account':'Staff sign-in'}</h2><form id="${recovery?'recover':'login'}">${field('Staff email','email','email','autocomplete="username" maxlength="254"')}${recovery?'':field('Password','password','password','autocomplete="current-password" maxlength="128"')+'<label class="check-id"><input name="remember" type="checkbox">Keep me logged in on this device</label><p class="help">Stay signed in for up to 12 hours, including after calls or switching apps. Use only on a phone you control. Sign out when your shift ends.</p>'}<button class="wide">${recovery?'Send recovery email':'Sign in securely'}</button></form><button class="text-button" id="${recovery?'back-login':'forgot'}">${recovery?'Back to sign-in':'Forgot your password?'}</button>${!recovery?`<details><summary>Activate a staff invitation</summary><form id="invite-code">${field('Invited email','email','email','autocomplete="username"')}${field('Invitation code','code','text','inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,10}"')}<button class="quiet wide">Activate my invitation</button></form></details>`:''}${recovery?`<details open><summary>I have a recovery code</summary><form id="recovery-code">${field('Staff email','email','email','autocomplete="username"')}${field('Email recovery code','code','text','inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,10}"')}<button class="quiet wide">Verify recovery code</button></form></details>`:''}</section></div>`;
 }
@@ -160,4 +161,4 @@ async function start(){
   await refresh();
 }
 connection();start().catch(error=>{login(true);tell(error.message,true);});
-if('serviceWorker' in navigator)navigator.serviceWorker.register('/door/sw.js',{scope:'/door/'}).catch(()=>{});
+if(!browserOnly&&'serviceWorker' in navigator)navigator.serviceWorker.register('/door/sw.js',{scope:'/door/'}).catch(()=>{});
