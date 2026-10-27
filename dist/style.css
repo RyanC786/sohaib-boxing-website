@@ -58,4 +58,4 @@ header .brand{gap:14px;flex-shrink:0}header .brand-name{display:flex;flex-direct
 .event-status-section{padding-top:124px}@media(max-width:700px){.event-status-section{padding-top:104px}}
 .fighter-withdrawal-stamp{color:#f1d99d;border-color:#f1d99d;background:#201d13ed;font-size:clamp(22px,3vw,40px);letter-spacing:3px}
 
-.demo-booking-banner{position:relative;z-index:3;display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:18px 5%;background:#302719;border-block:1px solid #b9954f;color:#f2dfad;font:14px/1.5 Arial,sans-serif}.demo-booking-banner strong{font-size:12px;letter-spacing:1px}.demo-booking-banner span{flex:1;min-width:230px}.demo-booking-banner a{color:#fff0c1;font-weight:bold;text-decoration:underline}
+.demo-booking-banner{margin-top:94px;position:relative;z-index:3;display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:18px 5%;background:#302719;border-block:1px solid #b9954f;color:#f2dfad;font:14px/1.5 Arial,sans-serif}.demo-booking-banner strong{font-size:12px;letter-spacing:1px}.demo-booking-banner span{flex:1;min-width:230px}.demo-booking-banner a{color:#fff0c1;font-weight:bold;text-decoration:underline}
