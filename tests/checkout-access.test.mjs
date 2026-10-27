@@ -29,3 +29,19 @@ test('sandbox catalog and checkout require an MFA owner before any ticket databa
     await assert.rejects(checkoutAccess(req(),{stripeKey:'invalid'}),e=>e.status===503);
   }finally{globalThis.fetch=originalFetch;process.env=saved;}
 });
+
+test('demo requests fail closed with live keys before reservation or Stripe; mode endpoint exposes no credentials',async()=>{
+  const saved={...process.env},originalFetch=globalThis.fetch;let calls=0;
+  Object.assign(process.env,{SUPABASE_URL:'https://project.example.test',SUPABASE_SECRET_KEY:'synthetic-server',RINGSIDE_TICKET_KEY:'f'.repeat(64),STRIPE_SECRET_KEY:'sk_live_fixture',TICKETING_ENABLED:'true'});
+  globalThis.fetch=async()=>{calls++;throw Error('A demo must never call live providers.');};
+  try{
+    const mode=await ticket(new Request('https://boxing.test/api/ticket/mode'));
+    assert.deepEqual(await mode.json(),{mode:'live'});assert.equal(mode.headers.get('Cache-Control'),'no-store');
+    const catalog=await ticket(new Request('https://boxing.test/api/ticket/catalog?demo=1'));
+    assert.equal(catalog.status,409);
+    const checkout=await ticket(new Request('https://boxing.test/api/ticket/checkout',{method:'POST',headers:{origin:'https://boxing.test','Content-Type':'application/json'},body:JSON.stringify({demo:true})}));
+    assert.equal(checkout.status,409);assert.equal(calls,0);
+    process.env.STRIPE_SECRET_KEY='sk_test_fixture';assert.deepEqual(await (await ticket(new Request('https://boxing.test/api/ticket/mode'))).json(),{mode:'test'});
+    process.env.TICKETING_ENABLED='false';assert.deepEqual(await (await ticket(new Request('https://boxing.test/api/ticket/mode'))).json(),{mode:'disabled'});
+  }finally{globalThis.fetch=originalFetch;process.env=saved;}
+});

@@ -26,6 +26,7 @@ async function refresh(){
   if(!session.authenticated){login();return;}
   if(!session.mfaVerified){mfa();return;}
   if(recovered){passwordView();return;}
+  if(new URLSearchParams(location.search).get('next')==='demo'&&session.role==='owner'){location.assign('/ticket/buy/?demo=1');return;}
   if(session.role==='editor'||new URLSearchParams(location.search).get('next')==='admin'&&session.role==='owner'){location.assign('/admin/');return;}
   events=await api('events');desk();
 }

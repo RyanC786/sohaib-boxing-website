@@ -36,3 +36,11 @@ Email delivery uses Resend through a disabled-by-default scheduled function. It 
 ### Staying signed in during a door shift
 
 At password login, staff may tick **Keep me logged in on this device** on a phone they control. It retains the protected cookie across app/browser restarts for up to 12 hours from login; without it, the cookie lasts for the browser session. Calls and switching apps do not require fresh MFA while the session remains valid. Returning rechecks staff access and clears any old ticket check; tap Open ticket camera to resume. Sign out at shift end. Expiry, password changes, revoked provider sessions or organiser access changes can still require sign-in or deny entry. This option never stores the password or authenticator secret in browser storage.
+
+### Website demonstration checkout (27 October 2026)
+
+When the server reports a Stripe test key, public booking buttons point to `/ticket/buy/?demo=1` and a demonstration banner labels the website. This uses the existing MFA owner-only sandbox inventory, not the old external booking link. The public `/api/ticket/mode` route exposes only test/live/disabled status. If mode cannot be determined, booking buttons fail closed.
+
+The demo requires test mode at both catalog and checkout. A live key rejects the demo before reservation/payment calls; Stripe must also return `livemode:false` and a `cs_test_` session before a redirect is returned. Signing in through `/door/?next=demo` returns an owner to the demo form after MFA. Scanners are not granted checkout access. No payment secrets or webhook settings were changed.
+
+Use the existing TEST ONLY event and test card 4242 4242 4242 4242, any future expiry and three-digit CVC. Do not use a real card. Complete the test email/download/scan journey with an authorised test recipient. Existing test inventory has a finite date/admission window and capacity; review it before future meetings rather than reusing old refunded or admitted QR codes.

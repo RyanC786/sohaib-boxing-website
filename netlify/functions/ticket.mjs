@@ -1,12 +1,16 @@
-import {ticketConfiguration,deliveryConfiguration,database,rpc,receipt,ticketToken,hashToken,validWebhookSecret} from '../../server/ticketing.mjs';
+import {ticketConfiguration,deliveryConfiguration,database,rpc,receipt,ticketToken,hashToken,validWebhookSecret,stripeKeyMode} from '../../server/ticketing.mjs';
 import {body,fail,errorResponse} from '../../server/door-auth.mjs';
 import {json} from '../../server/auth.mjs';
 import {checkoutAccess} from '../../server/checkout-access.mjs';
 export default async req=>{
   try{
     const path=new URL(req.url).pathname;
+    if(path==='/api/ticket/mode'&&req.method==='GET'){
+      const config=ticketConfiguration();return json({mode:config?stripeKeyMode(config.stripeKey)||'disabled':'disabled'});
+    }
     const config=['/api/ticket/receipt','/api/ticket/request'].includes(path)?deliveryConfiguration():ticketConfiguration();if(!config)throw fail('Online ticket delivery is awaiting activation. Please use the organiser’s current booking page.',503);
     const access=['/api/ticket/catalog','/api/ticket/checkout'].includes(path)?await checkoutAccess(req,config):null;
+    if(path==='/api/ticket/catalog'&&new URL(req.url).searchParams.get('demo')==='1'&&!access.testMode)throw fail('The demo requires Stripe test mode. Live payment has been blocked.',409);
     const db=database(config);
     if(path==='/api/ticket/catalog'&&req.method==='GET')return json({categories:await rpc(db,'ringside_ticket_catalog',{}),challengeKey:process.env.TURNSTILE_SITE_KEY||'',testMode:access.testMode},200,access.headers);
     if(req.method!=='POST')return json({error:'Method not allowed.'},405);
@@ -17,6 +21,7 @@ export default async req=>{
       return json(await rpc(db,'ringside_booking_request',{p_hash:hashToken(data.token),p_kind:data.kind,p_message:data.message}));
     }
     if(path!=='/api/ticket/checkout')throw fail('Unknown ticket request.',404);
+    if(data.demo===true&&!access.testMode)throw fail('The demo requires Stripe test mode. Live payment has been blocked.',409);
     if(!config.stripeKey||!validWebhookSecret(config.webhookSecret)||!config.origin||new URL(config.origin).origin!==new URL(req.url).origin||process.env.TICKET_EMAIL_ENABLED!=='true'||!process.env.RESEND_API_KEY||!process.env.TICKET_FROM_EMAIL||!process.env.TURNSTILE_SECRET_KEY)throw fail('Ticket payments and email delivery are awaiting activation.',503);
     if(! /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email||'')||data.email.length>254||! /^[0-9a-f-]{36}$/i.test(data.category||'')||! /^[0-9a-f-]{36}$/i.test(data.requestId||'')||!Array.isArray(data.attendees)||!data.attendees.length||data.attendees.length>8||data.attendees.some(name=>typeof name!=='string'||name.trim().length<2||name.length>100))throw fail('Enter your email and a name for each attendee (up to eight tickets).');
     if(typeof data.challenge!=='string'||data.challenge.length>2048)throw fail('Complete the booking security check.');
@@ -32,9 +37,10 @@ export default async req=>{
     const result=await fetch('https://api.stripe.com/v1/checkout/sessions',{method:'POST',headers:{Authorization:'Bearer '+config.stripeKey,'Content-Type':'application/x-www-form-urlencoded','Idempotency-Key':'ringside-order-'+order.id},body:params,signal:AbortSignal.timeout(15000)});
     if(!result.ok)throw fail('Checkout could not be opened. Retry this booking or contact the organiser. Your reservation has been kept.',503);
     const checkout=await result.json();
-    await rpc(db,'ringside_attach_checkout',{p_order:order.id,p_session:checkout.id,p_receipt_hash:hashToken(receiptToken)});
     if(!checkout.url?.startsWith('https://checkout.stripe.com/'))throw fail('Checkout is unavailable.',503);
+    if(data.demo===true&&(checkout.livemode!==false||!checkout.id?.startsWith('cs_test_')))throw fail('Stripe did not return a test checkout. Payment has been blocked.',503);
+    await rpc(db,'ringside_attach_checkout',{p_order:order.id,p_session:checkout.id,p_receipt_hash:hashToken(receiptToken)});
     return json({url:checkout.url},200,access.headers);
   }catch(error){return errorResponse(error);}
 };
-export const config={path:['/api/ticket/receipt','/api/ticket/request','/api/ticket/catalog','/api/ticket/checkout'],rateLimit:{windowLimit:30,windowSize:60,aggregateBy:['ip','domain']}};
+export const config={path:['/api/ticket/mode','/api/ticket/receipt','/api/ticket/request','/api/ticket/catalog','/api/ticket/checkout'],rateLimit:{windowLimit:30,windowSize:60,aggregateBy:['ip','domain']}};

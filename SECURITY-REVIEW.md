@@ -28,3 +28,5 @@ The scanner and ticket routes already have restricted policies; payment booking 
 - Keep provider secrets out of source/browser code; preserve the stable ticket-signing key. No key rotation or provider permission changes were performed in this review.
 
 Reference: https://nextjs.org/blog/nextjs-security-update-october-14-2026 and https://react.dev/blog/2025/12/03/critical-security-vulnerability-in-react-server-components (checked 22 October 2026).
+
+Deployment verification: Netlify published commit aece0d2 (deploy 6ada59ee0c69eec3bde3b2bc). Public read-only HTTP checks confirmed the admin CSP, HSTS, nosniff and no-store headers. Anonymous GET requests to /api/admin/content, /api/admin/staff and /api/door/events all returned 401. This documentation follow-up is retained for the next substantive push rather than triggering another production release.

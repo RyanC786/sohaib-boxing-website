@@ -36,7 +36,7 @@ window.RingsideContent={
       document.querySelectorAll('.hero-copy .button,.fight-actions .button,header>.button').forEach(a=>{a.href='/events/#event-status';a.textContent=a.closest('header')?'Event update':withdrawn(event)?'Fighter update · Event going ahead':'Event '+event.status+' · Read update';});
       if(!withdrawn(event))document.querySelectorAll('.fight-actions>p').forEach(p=>p.hidden=true);
     }
-    if(closed)document.querySelectorAll('.booking-box .button,.ticket-select').forEach(a=>{a.removeAttribute('href');a.setAttribute('aria-disabled','true');a.textContent='Event '+event.status;});
+    if(closed&&!c.demoMode)document.querySelectorAll('.booking-box .button,.ticket-select').forEach(a=>{a.removeAttribute('href');a.setAttribute('aria-disabled','true');a.textContent='Event '+event.status;});
     document.querySelectorAll('.booking-policy,.ticket-note').forEach(p=>{p.textContent=event.refundPolicy;});
     document.querySelectorAll('footer a').forEach(a=>{if(a.textContent.includes('Ticket & refund'))a.href='/ticket-policy/';});
     if(location.pathname.startsWith('/events')){
