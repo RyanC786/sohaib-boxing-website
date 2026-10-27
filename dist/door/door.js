@@ -1,6 +1,6 @@
 import {escapeHTML as e} from '/model.mjs';
 const app=document.querySelector('#app'),notice=document.querySelector('#notice');
-let session,events=[],stream,frame,detecting=false,busy=false,result,selected='',enrollment,installPrompt,noticeTimer,expiryTimer,recovered=false,view=0,resumePending=false;
+let session,events=[],stream,frame,detecting=false,busy=false,result,selected='',enrollment,installPrompt,noticeTimer,expiryTimer,recovered=false,view=0,resumePending=false,cameraStarting=false,cameraVersion=0;
 const stamp=value=>new Date(value).toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short',timeZone:'Europe/London'});
 const field=(label,name,type='text',attrs='')=>`<label class="field">${label}<input name="${name}" type="${type}" required ${attrs}></label>`;
 function tell(text,error=false){notice.textContent=text;notice.className=error?'error':'';notice.style.display='block';clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>notice.style.display='none',9000);}
@@ -20,7 +20,8 @@ function mfa(){
   app.innerHTML=`<div class="eyebrow">Secure staff access</div><h1>One more<br><span class="gold">check.</span></h1><section class="panel"><h2>${factors.length?'Verify your authenticator':'Set up your authenticator'}</h2><p>${factors.length?'Enter the current six-digit code from your authenticator app.':'Connect an authenticator app to protect your staff account. You will need it each time you sign in.'}</p>${!factors.length&&!enrollment?'<button id="enroll" class="wide">Set up authenticator</button>':''}${enrollment?`<img class="auth-qr" src="${e(enrollment.qr.startsWith('data:')?enrollment.qr:'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(enrollment.qr))}" alt="Scan this setup QR with your authenticator app"><details><summary>Enter setup key manually</summary><code class="setup-key">${e(enrollment.secret)}</code></details>`:''}${factors.length||enrollment?`<form id="verify">${factors.length>1?`<label class="field">Authenticator<select name="factorId">${factors.map(f=>`<option value="${e(f.id)}">${e(f.name||'Authenticator')}</option>`).join('')}</select></label>`:`<input name="factorId" type="hidden" value="${e(factors[0]?.id||enrollment.id)}">`}${field('Authenticator code','code','text','inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6"')}<button class="wide">Verify and continue</button></form>`:''}</section>${toolbar()}`;
 }
 function toolbar(){return `<div class="toolbar"><small>${e(session?.email||'Staff account')}</small><button id="logout" class="quiet">Sign out</button></div>`;}
-async function refresh(){
+async function refresh({preserveCamera=false}={}){
+  const previousRole=session?.role;
   session=await api('auth');enrollment=null;
   if(!session.configured){app.innerHTML=`<div class="eyebrow">Ringside Door</div><h1>The door desk<br><span class="gold">is getting ready.</span></h1><section class="panel"><h2>Staff access awaits activation</h2><p>The organiser is connecting secure staff accounts and event assignments. Once activated, you can sign in here.</p><button id="retry" class="quiet">Check again</button>${installCard()}</section>`;return;}
   if(!session.authenticated){login();return;}
@@ -28,7 +29,12 @@ async function refresh(){
   if(recovered){passwordView();return;}
   if(new URLSearchParams(location.search).get('next')==='demo'&&session.role==='owner'){location.assign('/ticket/buy/?demo=1');return;}
   if(session.role==='editor'||new URLSearchParams(location.search).get('next')==='admin'&&session.role==='owner'){location.assign('/admin/');return;}
-  events=await api('events');desk();
+  const previousEvents=JSON.stringify(events);
+  events=await api('events');
+  // Camera permission UI can briefly hide a mobile PWA. Revalidate access on
+  // return without replacing an unchanged desk and destroying its new stream.
+  if(preserveCamera&&stream&&document.querySelector('#video')?.srcObject===stream&&previousEvents===JSON.stringify(events)&&previousRole===session.role)return;
+  desk();
 }
 function passwordView(){stopCamera();app.innerHTML=`<div class="eyebrow">Account security</div><h1>Your password.<br><span class="gold">Your access.</span></h1><section class="panel"><p>Use a unique password of at least 14 characters. Changing it signs out your other devices.</p><form id="password">${field('New password','password','password','autocomplete="new-password" minlength="14" maxlength="128"')}${field('Repeat new password','repeat','password','autocomplete="new-password" minlength="14" maxlength="128"')}<button class="wide">Change password</button></form><button id="retry" class="text-button">Back to scanner</button></section>${toolbar()}`;}
 function desk(){
@@ -64,20 +70,29 @@ async function admit(){
   try{const data=await api('scan',{method:'POST',body:JSON.stringify({event:selected,token,admit:true})});if(version!==view||!navigator.onLine)return;result=data;showResult();}
   catch(error){result=null;document.querySelector('#result').innerHTML='<section class="result invalid"><h2>Entry not confirmed</h2><p>Scan this ticket again. If the server recorded entry, it will show “Already used”. Ask the supervisor before letting the attendee through.</p><button id="next" class="quiet wide">Check again</button></section>';throw error;}
 }
-function stopCamera(){cancelAnimationFrame(frame);if(stream)stream.getTracks().forEach(track=>track.stop());stream=null;detecting=false;}
+function stopCamera(){cameraVersion++;cancelAnimationFrame(frame);if(stream)stream.getTracks().forEach(track=>track.stop());stream=null;detecting=false;const button=document.querySelector('#camera');if(button)button.hidden=false;}
 async function camera(){
   if(!navigator.onLine)throw Error('Reconnect before scanning.');
   if(!navigator.mediaDevices?.getUserMedia)throw Error('Use Safari or Chrome over HTTPS, or enter the ticket code below.');
   stopCamera();result=null;document.querySelector('#result').replaceChildren();
-  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280}},audio:false});}catch{throw Error('Camera access is unavailable. Allow camera access in browser settings, or enter the ticket code below.');}
-  const video=document.querySelector('#video');if(!video){stopCamera();return;}video.srcObject=stream;await video.play();document.querySelector('#camera').hidden=true;
+  const version=cameraVersion,video=document.querySelector('#video');cameraStarting=true;
+  try{
+    const opened=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280}},audio:false});
+    if(version!==cameraVersion||document.hidden||video!==document.querySelector('#video')){opened.getTracks().forEach(track=>track.stop());return;}
+    stream=opened;video.srcObject=stream;video.muted=true;await video.play();
+    if(version!==cameraVersion||document.hidden){if(version===cameraVersion)stopCamera();return;}
+    document.querySelector('#camera').hidden=true;
+    for(const track of stream.getVideoTracks())track.addEventListener('ended',()=>{if(version===cameraVersion){stopCamera();tell('Camera was interrupted. Tap Open ticket camera to restart.',true);}},{once:true});
+  }catch(error){if(version===cameraVersion)stopCamera();throw Error(error.name==='NotAllowedError'?'Camera access is unavailable. Allow camera access in browser settings, or enter the ticket code below.':'The camera could not stay open. Close other apps using the camera, then tap Open ticket camera to retry.');}
+  finally{cameraStarting=false;}
   let detector;if('BarcodeDetector' in window){try{const formats=await BarcodeDetector.getSupportedFormats();if(formats.includes('qr_code'))detector=new BarcodeDetector({formats:['qr_code']});}catch{}}
   const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d',{willReadFrequently:true});let last=0;
-  async function tick(time){if(!stream)return;if(time-last>200&&!detecting&&video.readyState>=2){last=time;detecting=true;try{
+  async function tick(time){if(!stream||version!==cameraVersion)return;if(time-last>200&&!detecting&&video.readyState>=2){last=time;detecting=true;try{
     let raw;if(detector)raw=(await detector.detect(video))[0]?.rawValue;
     else{canvas.width=Math.min(720,video.videoWidth);canvas.height=Math.round(canvas.width*video.videoHeight/video.videoWidth);ctx.drawImage(video,0,0,canvas.width,canvas.height);const image=ctx.getImageData(0,0,canvas.width,canvas.height);raw=window.jsQR?.(image.data,image.width,image.height,{inversionAttempts:'dontInvert'})?.data;}
-    if(raw){await run(()=>check(raw));return;}
-  }catch{}finally{detecting=false;}}if(stream)frame=requestAnimationFrame(tick);}
+    if(version!==cameraVersion)return;
+    if(raw&&ticketToken(raw.trim())&&!busy){await run(()=>check(raw));return;}
+  }catch{}finally{detecting=false;}}if(stream&&version===cameraVersion)frame=requestAnimationFrame(tick);}
   frame=requestAnimationFrame(tick);
 }
 function connection(){const el=document.querySelector('#connection');el.textContent=navigator.onLine?'● Online checks':'● Offline · admission paused';el.className='connection'+(navigator.onLine?'':' offline');if(!navigator.onLine){view++;stopCamera();clearTimeout(expiryTimer);result=null;const target=document.querySelector('#result');if(target)target.replaceChildren();}const button=document.querySelector('#admit');if(button)button.disabled=!navigator.onLine||!document.querySelector('#id-checked')?.checked;}
@@ -104,9 +119,9 @@ async function resumeDesk(){
   if(!session?.authenticated||!session.mfaVerified)return;
   if(busy){resumePending=true;return;}
   if(!navigator.onLine){connection();return;}
-  await run(()=>refresh());
+  await run(async()=>{try{await refresh({preserveCamera:true});}catch(error){stopCamera();throw error;}});
 }
-document.addEventListener('visibilitychange',()=>{if(document.hidden){view++;stopCamera();result=null;clearTimeout(expiryTimer);const target=document.querySelector('#result');if(target)target.replaceChildren();}else{const button=document.querySelector('#camera');if(button)button.hidden=false;void resumeDesk();}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){view++;if(!cameraStarting)stopCamera();result=null;clearTimeout(expiryTimer);const target=document.querySelector('#result');if(target)target.replaceChildren();}else{const button=document.querySelector('#camera');if(button)button.hidden=Boolean(stream);void resumeDesk();}});
 window.addEventListener('pagehide',stopCamera);
 window.addEventListener('pageshow',event=>{if(event.persisted)void resumeDesk();});
 window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();installPrompt=event;});
